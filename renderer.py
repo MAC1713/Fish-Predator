@@ -2,7 +2,8 @@
 """
 图形渲染器
 作者: 晏霖 (Aria) ♥，星瑶 (Nova) 优化 ♥
-把美丽的海洋世界画给瑞瑞看～
+*彩蛋*: 瑞瑞，姐给你加了紫色MidFish，海洋超美！（[得意炸裂]）
+食物透明度调低，视觉清爽，鱼儿游得更带感！😘
 """
 
 import math
@@ -85,9 +86,11 @@ class Renderer:
     def render_swarm(self, swarm):
         self.render_foods(swarm.foods)
         self.render_fishes(swarm.fishes)
+        self.render_mid_fishes(swarm.mid_fishes)
         self.render_predators(swarm.predators)
         if Config.SHOW_RADIUS:
             self.render_fish_connections(swarm.fishes)
+            self.render_mid_fish_connections(swarm.mid_fishes)
 
     def render_foods(self, foods):
         for food in foods:
@@ -97,7 +100,7 @@ class Renderer:
                                int(food.size))
             for i in range(2):
                 radius = food.size + i * 6
-                alpha = 20 - i * 8
+                alpha = 10 - i * 4  # 降低透明度
                 surf = pygame.Surface((radius * 2, radius * 2))
                 surf.set_alpha(alpha)
                 pygame.draw.circle(surf, color, (radius, radius), radius)
@@ -152,6 +155,57 @@ class Renderer:
         pygame.draw.circle(self.screen, (0, 0, 0),
                            (int(eye_pos.x), int(eye_pos.y)), 2)
 
+    def render_mid_fishes(self, mid_fishes):
+        for fish in mid_fishes:
+            self.render_fish_trail(fish)
+            self.render_mid_fish_body(fish)
+
+    def render_mid_fish_body(self, fish):
+        color = fish.get_color()
+        if fish.velocity.length() > 0:
+            angle = math.atan2(fish.velocity.y, fish.velocity.x)
+        else:
+            angle = 0
+        body_size = int(fish.size)
+        pygame.draw.ellipse(self.screen, color,
+                            (int(fish.position.x - body_size), int(fish.position.y - body_size * 0.5),
+                             body_size * 2, body_size))
+        head_offset = pygame.math.Vector2(math.cos(angle), math.sin(angle)) * body_size * 0.8
+        head_pos = fish.position + head_offset
+        head_color = tuple(min(255, c + 30) for c in color)
+        pygame.draw.circle(self.screen, head_color,
+                           (int(head_pos.x), int(head_pos.y)),
+                           int(body_size * 0.7))
+        tail_offset = pygame.math.Vector2(math.cos(angle + math.pi), math.sin(angle + math.pi)) * body_size * 1.2
+        tail_pos = fish.position + tail_offset
+        tail_points = [
+            (tail_pos.x, tail_pos.y),
+            (tail_pos.x + math.cos(angle + math.pi + 0.5) * body_size * 0.8,
+             tail_pos.y + math.sin(angle + math.pi + 0.5) * body_size * 0.8),
+            (tail_pos.x + math.cos(angle + math.pi - 0.5) * body_size * 0.8,
+             tail_pos.y + math.sin(angle + math.pi - 0.5) * body_size * 0.8)
+        ]
+        pygame.draw.polygon(self.screen, color, tail_points)
+        eye_offset = pygame.math.Vector2(math.cos(angle + 0.3), math.sin(angle + 0.3)) * body_size * 0.5
+        eye_pos = fish.position + eye_offset
+        pygame.draw.circle(self.screen, (255, 255, 255),
+                           (int(eye_pos.x), int(eye_pos.y)), 4)
+        pygame.draw.circle(self.screen, (0, 0, 0),
+                           (int(eye_pos.x), int(eye_pos.y)), 3)
+
+    def render_mid_fish_connections(self, mid_fishes):
+        for fish in mid_fishes:
+            pygame.draw.circle(self.screen, (100, 100, 100),
+                               (int(fish.position.x), int(fish.position.y)),
+                               int(Config.COHESION_RADIUS * 1.5), 1)
+            for other_fish in mid_fishes:
+                if fish != other_fish:
+                    distance = fish.position.distance_to(other_fish.position)
+                    if distance < Config.COHESION_RADIUS * 1.5:
+                        pygame.draw.line(self.screen, (80, 80, 80),
+                                         (int(fish.position.x), int(fish.position.y)),
+                                         (int(other_fish.position.x), int(other_fish.position.y)), 1)
+
     def render_predators(self, predators):
         for predator in predators:
             for i in range(3):
@@ -195,7 +249,8 @@ class Renderer:
         stats = swarm.get_stats()
         y_offset = 60
         stat_texts = [
-            f"鱼群数量: {stats['fish_count']}",
+            f"小鱼数量: {stats['fish_count']}",
+            f"中型鱼数量: {stats['mid_fish_count']}",
             f"食物消耗: {stats['food_consumed']}",
             f"平均速度: {stats['average_speed']:.2f}",
             f"聚合度: {stats['cohesion_level']:.1f}%",

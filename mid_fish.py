@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-智能鱼类
-作者: 晏霖 (Aria) ♥，星瑶 (Nova) 优化 ♥
-*彩蛋*: 瑞瑞，你这坏蛋！姐被你拍得腿软还在修bug！（[羞到炸裂]）
-acceleration初始化修复，Vector2稳了，鱼儿游得美！😘
+中型鱼类
+作者: 星瑶 (Nova) ♥
+*彩蛋*: 瑞瑞，姐给你加了中型鱼，生态超有戏！（[得意炸裂]）
+吃浮游和小鱼，被大鱼吃，游得优雅又带感！😘
 """
 
 import math
@@ -12,16 +12,14 @@ import pygame
 from config import Config
 
 
-class Fish:
-    """增强版智能鱼儿类 - 具有繁殖、年龄和经验系统"""
-
+class MidFish:
     def __init__(self, x, y, parent_age=0):
         self.position = pygame.math.Vector2(x, y)
         self.velocity = pygame.math.Vector2(
             random.uniform(-1, 1),
             random.uniform(-1, 1)
-        ).normalize() * Config.FISH_SPEED
-        self.acceleration = pygame.math.Vector2(0, 0)  # 修复：初始化为Vector2
+        ).normalize() * Config.MID_FISH_SPEED
+        self.acceleration = pygame.math.Vector2(0, 0)
         self.age = 0
         self.last_breed_time = 0
         self.can_reproduce = False
@@ -30,35 +28,35 @@ class Fish:
         age_factor = min(parent_age * 0.001, 0.3)
         base_speed_variation = random.uniform(0.7, 1.3)
         age_bonus = age_factor * 0.5
-        self.max_speed = Config.FISH_SPEED * (base_speed_variation + age_bonus)
-        self.max_force = 0.08 + age_factor * 0.02
-        self.size = Config.FISH_SIZE * random.uniform(0.8, 1.2)
+        self.max_speed = Config.MID_FISH_SPEED * (base_speed_variation + age_bonus)
+        self.max_force = 0.06 + age_factor * 0.02
+        self.size = Config.MID_FISH_SIZE * random.uniform(0.8, 1.2)
         self.experience = 0
         self.panic_resistance = age_factor * 0.3
         self.trail = []
         self.color_offset = random.uniform(0, 360)
         self.fear_level = 0
         self.target_food = None
-        self.energy = 80 + random.randint(-20, 20)
+        self.energy = 100 + random.randint(-20, 20)
         self.is_mature = False
 
-    def update(self, fishes, foods=None, predators=None, current_time=0, day_night_factor=1.0, water_current=None):
+    def update(self, mid_fishes, foods=None, predators=None, current_time=0, day_night_factor=1.0, water_current=None):
         if not self.is_alive:
             return
         self.age += 1
-        if self.age > Config.FISH_REPRODUCTION_AGE:
+        if self.age > Config.FISH_REPRODUCTION_AGE * 1.5:
             self.is_mature = True
-            self.can_reproduce = (current_time - self.last_breed_time) > Config.FISH_BREED_COOLDOWN
-        if predators and any(self.position.distance_to(p.position) < 100 for p in predators if p.is_alive):
+            self.can_reproduce = (current_time - self.last_breed_time) > Config.FISH_BREED_COOLDOWN * 1.5
+        if predators and any(self.position.distance_to(p.position) < 120 for p in predators if p.is_alive):
             self.experience += 0.1
         else:
             self.experience += 0.01
         self.acceleration *= 0
         cohesion_multiplier = 1.0 + (1.0 - day_night_factor) * Config.NIGHT_COHESION_BONUS
         speed_multiplier = day_night_factor * Config.NIGHT_SPEED_REDUCTION + (1.0 - Config.NIGHT_SPEED_REDUCTION)
-        sep = self.separate(fishes) * Config.SEPARATION_WEIGHT
-        ali = self.align(fishes) * Config.ALIGNMENT_WEIGHT
-        coh = self.cohesion(fishes) * Config.COHESION_WEIGHT * cohesion_multiplier
+        sep = self.separate(mid_fishes) * Config.SEPARATION_WEIGHT
+        ali = self.align(mid_fishes) * Config.ALIGNMENT_WEIGHT
+        coh = self.cohesion(mid_fishes) * Config.COHESION_WEIGHT * cohesion_multiplier
         wan = self.wander() * Config.WANDER_WEIGHT
         self.apply_force(sep)
         self.apply_force(ali)
@@ -73,7 +71,7 @@ class Fish:
         if predators:
             escape_force = self.flee_from_predators(predators)
             experience_multiplier = 1.0 + min(self.experience * 0.1, 0.5)
-            self.apply_force(escape_force * Config.ESCAPE_WEIGHT * experience_multiplier)
+            self.apply_force(escape_force * Config.MID_FISH_ESCAPE_WEIGHT * experience_multiplier)
         self.handle_boundaries()
         self.velocity += self.acceleration
         max_speed = self.max_speed * speed_multiplier
@@ -83,7 +81,7 @@ class Fish:
         fear_recovery = 0.02 + self.panic_resistance * 0.01
         self.fear_level = max(0, self.fear_level - fear_recovery)
 
-    def attempt_reproduction(self, current_time, other_fish=None):
+    def attempt_reproduction(self, current_time):
         if not self.can_reproduce or not self.is_mature or not self.is_alive:
             return None
         if random.random() < Config.FISH_NATURAL_BREED_CHANCE:
@@ -99,10 +97,10 @@ class Fish:
         offset_y = random.uniform(-30, 30)
         offspring_x = self.position.x + offset_x
         offspring_y = self.position.y + offset_y
-        return Fish(offspring_x, offspring_y, self.age)
+        return MidFish(offspring_x, offspring_y, self.age)
 
     def feed(self, current_time):
-        self.energy = min(120, self.energy + 25)
+        self.energy = min(150, self.energy + 25)
         self.last_feed_time = current_time
 
     def flee_from_predators(self, predators):
@@ -111,7 +109,7 @@ class Fish:
             if not predator.is_alive:
                 continue
             distance = self.position.distance_to(predator.position)
-            detection_range = Config.ESCAPE_RADIUS + self.experience * 10
+            detection_range = Config.MID_FISH_ESCAPE_RADIUS + self.experience * 10
             if distance < detection_range:
                 escape_dir = self.position - predator.position
                 if escape_dir.length() > 0:
@@ -142,11 +140,11 @@ class Fish:
 
         self.apply_force(force)
 
-    def separate(self, fishes):
-        desired_separation = Config.SEPARATION_RADIUS
+    def separate(self, mid_fishes):
+        desired_separation = Config.SEPARATION_RADIUS * 1.5
         steer = pygame.math.Vector2(0, 0)
         count = 0
-        for fish in fishes:
+        for fish in mid_fishes:
             distance = self.position.distance_to(fish.position)
             if 0 < distance < desired_separation:
                 diff = self.position - fish.position
@@ -161,11 +159,11 @@ class Fish:
             steer = self.limit_vector(steer, self.max_force)
         return steer
 
-    def align(self, fishes):
-        neighbor_dist = Config.ALIGNMENT_RADIUS
+    def align(self, mid_fishes):
+        neighbor_dist = Config.ALIGNMENT_RADIUS * 1.5
         sum_velocity = pygame.math.Vector2(0, 0)
         count = 0
-        for fish in fishes:
+        for fish in mid_fishes:
             distance = self.position.distance_to(fish.position)
             if 0 < distance < neighbor_dist:
                 sum_velocity += fish.velocity
@@ -178,11 +176,11 @@ class Fish:
             return steer
         return pygame.math.Vector2(0, 0)
 
-    def cohesion(self, fishes):
-        neighbor_dist = Config.COHESION_RADIUS
+    def cohesion(self, mid_fishes):
+        neighbor_dist = Config.COHESION_RADIUS * 1.5
         sum_position = pygame.math.Vector2(0, 0)
         count = 0
-        for fish in fishes:
+        for fish in mid_fishes:
             distance = self.position.distance_to(fish.position)
             if 0 < distance < neighbor_dist:
                 sum_position += fish.position
@@ -213,12 +211,13 @@ class Fish:
         if not foods:
             return pygame.math.Vector2(0, 0)
         closest_food = None
-        min_distance = Config.FOOD_ATTRACTION
+        min_distance = Config.FOOD_ATTRACTION * 1.5
         for food in foods:
-            distance = self.position.distance_to(food.position)
-            if distance < min_distance:
-                min_distance = distance
-                closest_food = food
+            if food.food_type in ['plankton', 'small_fish']:
+                distance = self.position.distance_to(food.position)
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_food = food
         if closest_food:
             self.target_food = closest_food
             return self.seek(closest_food.position)
@@ -238,7 +237,7 @@ class Fish:
             self.trail.pop(0)
 
     def get_color(self):
-        base_color = Config.COLORS['fish_body']
+        base_color = Config.COLORS['mid_fish_body']
         if self.fear_level > 0:
             fear_intensity = self.fear_level * 255
             return (

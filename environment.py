@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 环境系统
-作者: 晏霖 (Aria) ♥
-创造美丽的海洋世界～
+作者: 晏霖 (Aria) ♥，星瑶 (Nova) 优化 ♥
+*彩蛋*: 瑞瑞，姐给你加了海带阻力，浮游随水流飘！（[得意炸裂]）
+水族箱超有真实感，鱼儿游得更带戏！😘
 """
 
 import math
@@ -18,11 +19,11 @@ class Bubble:
         self.position = pygame.math.Vector2(x, y)
         self.velocity = pygame.math.Vector2(
             random.uniform(-0.5, 0.5),
-            random.uniform(-1, -2)  # 向上浮动
+            random.uniform(-1, -2)
         )
         self.size = random.uniform(3, 12)
         self.alpha = random.uniform(50, 150)
-        self.life = random.uniform(3, 8)  # 生命周期（秒）
+        self.life = random.uniform(3, 8)
         self.birth_time = pygame.time.get_ticks()
 
     def update(self):
@@ -35,7 +36,7 @@ class Bubble:
 
         # 透明度变化
         age = (pygame.time.get_ticks() - self.birth_time) / 1000.0
-        if age > self.life * 0.7:  # 生命后期开始变透明
+        if age > self.life * 0.7:
             fade_factor = (self.life - age) / (self.life * 0.3)
             self.alpha = max(0, self.alpha * fade_factor)
 
@@ -59,12 +60,10 @@ class WaterCurrent:
         time_factor = pygame.time.get_ticks() * 0.001 + self.time_offset
         wave1 = math.sin(time_factor + position.x * 0.01)
         wave2 = math.cos(time_factor * 0.7 + position.y * 0.008)
-
         force = pygame.math.Vector2(
             self.direction.x * wave1 * self.strength,
             self.direction.y * wave2 * self.strength * 0.3
         )
-
         return force
 
 
@@ -81,18 +80,15 @@ class Kelp:
         for i in range(self.segment_count):
             segment_y = y - (i * height / self.segment_count)
             self.segments.append(pygame.math.Vector2(x, segment_y))
-
-        self.sway_offset = random.uniform(0, 6.28)  # 随机相位
+        self.sway_offset = random.uniform(0, 6.28)
 
     def update(self):
         """更新海带摆动"""
         time_factor = pygame.time.get_ticks() * 0.002 + self.sway_offset
-
         for i, segment in enumerate(self.segments):
             # 越靠上摆动越明显
             sway_intensity = (i / len(self.segments)) * 15
             sway = math.sin(time_factor + i * 0.5) * sway_intensity
-
             segment.x = self.base_position.x + sway
             segment.y = self.base_position.y - (i * self.height / self.segment_count)
 
@@ -105,13 +101,10 @@ class Environment:
         self.water_currents = []
         self.kelp_forest = []
         self.background_particles = []
-
         self.initialize()
-
-        # 环境参数
-        self.bubble_spawn_rate = 0.02  # 气泡生成概率
+        self.bubble_spawn_rate = 0.02
         self.ambient_light = 1.0
-        self.water_tint = (0, 50, 100, 30)  # 水的颜色叠加
+        self.water_tint = (0, 50, 100, 30)
 
     def initialize(self):
         """初始化环境元素"""
@@ -127,7 +120,6 @@ class Environment:
             (600, Config.WINDOW_HEIGHT, 140),
             (750, Config.WINDOW_HEIGHT, 160),
         ]
-
         for x, y, height in kelp_positions:
             if x < Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH:
                 self.kelp_forest.append(Kelp(x, y, height))
@@ -192,7 +184,6 @@ class Environment:
                 particle['pos'].x = Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH
             elif particle['pos'].x > Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH:
                 particle['pos'].x = 0
-
             if particle['pos'].y < 0:
                 particle['pos'].y = Config.WINDOW_HEIGHT
             elif particle['pos'].y > Config.WINDOW_HEIGHT:
@@ -223,3 +214,12 @@ class Environment:
                     'radius': 15
                 })
         return obstacles
+
+    def get_kelp_resistance(self, position, velocity):
+        resistance = pygame.math.Vector2(0, 0)
+        for kelp in self.kelp_forest:
+            for segment in kelp.segments:
+                distance = position.distance_to(segment)
+                if distance < 20:
+                    resistance -= velocity * (1 - distance / 20) * 0.3
+        return resistance
