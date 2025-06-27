@@ -2,8 +2,6 @@
 """
 中型鱼类
 作者: 星瑶 (Nova) ♥
-*彩蛋*: 瑞瑞，姐给你加了中型鱼，生态超有戏！（[得意炸裂]）
-吃浮游和小鱼，被大鱼吃，游得优雅又带感！😘
 """
 
 import math
@@ -25,6 +23,7 @@ class MidFish:
         self.can_reproduce = False
         self.last_feed_time = 0
         self.is_alive = True
+        self.max_age = random.randint(7200, 14400)  # 1-2分钟寿命
         age_factor = min(parent_age * 0.001, 0.3)
         base_speed_variation = random.uniform(0.7, 1.3)
         age_bonus = age_factor * 0.5
@@ -40,8 +39,11 @@ class MidFish:
         self.energy = 100 + random.randint(-20, 20)
         self.is_mature = False
 
-    def update(self, mid_fishes, foods=None, predators=None, current_time=0, day_night_factor=1.0, water_current=None):
+    def update(self, neighbors, foods=None, predators=None, current_time=0, day_night_factor=1.0, water_current=None):
         if not self.is_alive:
+            return
+        if self.age > self.max_age:
+            self.is_alive = False
             return
         self.age += 1
         if self.age > Config.FISH_REPRODUCTION_AGE * 1.5:
@@ -54,9 +56,11 @@ class MidFish:
         self.acceleration *= 0
         cohesion_multiplier = 1.0 + (1.0 - day_night_factor) * Config.NIGHT_COHESION_BONUS
         speed_multiplier = day_night_factor * Config.NIGHT_SPEED_REDUCTION + (1.0 - Config.NIGHT_SPEED_REDUCTION)
-        sep = self.separate(mid_fishes) * Config.SEPARATION_WEIGHT
-        ali = self.align(mid_fishes) * Config.ALIGNMENT_WEIGHT
-        coh = self.cohesion(mid_fishes) * Config.COHESION_WEIGHT * cohesion_multiplier
+        self.get_color(day_night_factor)
+        # 用neighbors计算行为
+        sep = self.separate(neighbors) * Config.SEPARATION_WEIGHT
+        ali = self.align(neighbors) * Config.ALIGNMENT_WEIGHT
+        coh = self.cohesion(neighbors) * Config.COHESION_WEIGHT * cohesion_multiplier
         wan = self.wander() * Config.WANDER_WEIGHT
         self.apply_force(sep)
         self.apply_force(ali)
@@ -125,12 +129,15 @@ class MidFish:
         force = pygame.math.Vector2(0, 0)
         margin = 50
         map_width = Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH
-
-        # 左右边界：循环
+        map_height = Config.WINDOW_HEIGHT
         if self.position.x < 0:
-            self.position.x += map_width
+            self.position.x = 0
         elif self.position.x > map_width:
-            self.position.x -= map_width
+            self.position.x = map_width
+        if self.position.y < 0:
+            self.position.y = 0
+        elif self.position.y > map_height:
+            self.position.y = map_height
 
         # 上下边界：反弹
         if self.position.y < margin:
@@ -140,11 +147,11 @@ class MidFish:
 
         self.apply_force(force)
 
-    def separate(self, mid_fishes):
+    def separate(self, neighbors):
         desired_separation = Config.SEPARATION_RADIUS * 1.5
         steer = pygame.math.Vector2(0, 0)
         count = 0
-        for fish in mid_fishes:
+        for fish in neighbors:
             distance = self.position.distance_to(fish.position)
             if 0 < distance < desired_separation:
                 diff = self.position - fish.position
@@ -159,11 +166,11 @@ class MidFish:
             steer = self.limit_vector(steer, self.max_force)
         return steer
 
-    def align(self, mid_fishes):
+    def align(self, neighbors):
         neighbor_dist = Config.ALIGNMENT_RADIUS * 1.5
         sum_velocity = pygame.math.Vector2(0, 0)
         count = 0
-        for fish in mid_fishes:
+        for fish in neighbors:
             distance = self.position.distance_to(fish.position)
             if 0 < distance < neighbor_dist:
                 sum_velocity += fish.velocity
@@ -176,11 +183,11 @@ class MidFish:
             return steer
         return pygame.math.Vector2(0, 0)
 
-    def cohesion(self, mid_fishes):
+    def cohesion(self, neighbors):
         neighbor_dist = Config.COHESION_RADIUS * 1.5
         sum_position = pygame.math.Vector2(0, 0)
         count = 0
-        for fish in mid_fishes:
+        for fish in neighbors:
             distance = self.position.distance_to(fish.position)
             if 0 < distance < neighbor_dist:
                 sum_position += fish.position
@@ -236,7 +243,7 @@ class MidFish:
         if len(self.trail) > Config.TRAIL_LENGTH:
             self.trail.pop(0)
 
-    def get_color(self):
+    def get_color(self, day_night_factor=1.0):
         base_color = Config.COLORS['mid_fish_body']
         if self.fear_level > 0:
             fear_intensity = self.fear_level * 255
@@ -246,7 +253,7 @@ class MidFish:
                 max(0, base_color[2] - fear_intensity // 2)
             )
         time_offset = pygame.time.get_ticks() * 0.002 + self.color_offset
-        color_variation = math.sin(time_offset) * 30
+        color_variation = math.sin(time_offset) * 30 * day_night_factor
         return (
             max(0, min(255, base_color[0] + color_variation)),
             max(0, min(255, base_color[1] + color_variation // 2)),

@@ -2,8 +2,6 @@
 """
 环境系统
 作者: 晏霖 (Aria) ♥，星瑶 (Nova) 优化 ♥
-*彩蛋*: 瑞瑞，姐给你加了海带阻力，浮游随水流飘！（[得意炸裂]）
-水族箱超有真实感，鱼儿游得更带戏！😘
 """
 
 import math
@@ -29,12 +27,8 @@ class Bubble:
     def update(self):
         """更新气泡状态"""
         self.position += self.velocity
-
-        # 轻微的左右摆动
         time_factor = pygame.time.get_ticks() * 0.001
         self.position.x += math.sin(time_factor + self.birth_time * 0.001) * 0.2
-
-        # 透明度变化
         age = (pygame.time.get_ticks() - self.birth_time) / 1000.0
         if age > self.life * 0.7:
             fade_factor = (self.life - age) / (self.life * 0.3)
@@ -50,19 +44,19 @@ class WaterCurrent:
     """水流效果"""
 
     def __init__(self):
-        self.strength = 0.5
+        self.strength = Config.CURRENT_STRENGTH
         self.direction = pygame.math.Vector2(1, 0)
         self.time_offset = random.uniform(0, 100)
 
-    def get_force_at_position(self, position):
-        """获取指定位置的水流力"""
-        # 基于正弦波的水流变化
+    def get_force_at_position(self, position, day_night_factor=1.0):
+        """获取指定位置的水流力，夜间稍弱"""
         time_factor = pygame.time.get_ticks() * 0.001 + self.time_offset
         wave1 = math.sin(time_factor + position.x * 0.01)
         wave2 = math.cos(time_factor * 0.7 + position.y * 0.008)
+        strength = self.strength * (0.7 + 0.3 * day_night_factor)  # 夜间减弱
         force = pygame.math.Vector2(
-            self.direction.x * wave1 * self.strength,
-            self.direction.y * wave2 * self.strength * 0.3
+            self.direction.x * wave1 * strength,
+            self.direction.y * wave2 * strength * 0.3
         )
         return force
 
@@ -75,19 +69,17 @@ class Kelp:
         self.height = height
         self.segments = []
         self.segment_count = max(3, height // 20)
-
-        # 创建海带节段
         for i in range(self.segment_count):
             segment_y = y - (i * height / self.segment_count)
             self.segments.append(pygame.math.Vector2(x, segment_y))
         self.sway_offset = random.uniform(0, 6.28)
 
-    def update(self):
-        """更新海带摆动"""
+    def update(self, day_night_factor=1.0):
+        """更新海带摆动，夜间摆动减弱"""
         time_factor = pygame.time.get_ticks() * 0.002 + self.sway_offset
+        sway_scale = 0.7 + 0.3 * day_night_factor  # 夜间摆动减弱
         for i, segment in enumerate(self.segments):
-            # 越靠上摆动越明显
-            sway_intensity = (i / len(self.segments)) * 15
+            sway_intensity = (i / len(self.segments)) * 15 * sway_scale
             sway = math.sin(time_factor + i * 0.5) * sway_intensity
             segment.x = self.base_position.x + sway
             segment.y = self.base_position.y - (i * self.height / self.segment_count)
@@ -101,18 +93,15 @@ class Environment:
         self.water_currents = []
         self.kelp_forest = []
         self.background_particles = []
-        self.initialize()
         self.bubble_spawn_rate = 0.02
         self.ambient_light = 1.0
         self.water_tint = (0, 50, 100, 30)
+        self.initialize()
 
     def initialize(self):
         """初始化环境元素"""
-        # 创建水流
         for _ in range(3):
             self.water_currents.append(WaterCurrent())
-
-        # 创建海带森林
         kelp_positions = [
             (100, Config.WINDOW_HEIGHT, 150),
             (250, Config.WINDOW_HEIGHT, 120),
@@ -123,8 +112,6 @@ class Environment:
         for x, y, height in kelp_positions:
             if x < Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH:
                 self.kelp_forest.append(Kelp(x, y, height))
-
-        # 创建背景粒子（浮游生物效果）
         for _ in range(50):
             x = random.uniform(0, Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH)
             y = random.uniform(0, Config.WINDOW_HEIGHT)
@@ -139,31 +126,22 @@ class Environment:
                 'phase': random.uniform(0, 6.28)
             })
 
-    def update(self):
-        """更新环境效果"""
-        # 更新气泡
+    def update(self, day_night_factor=1.0):
+        """更新环境效果，同步昼夜"""
         self.update_bubbles()
-
-        # 更新海带
         for kelp in self.kelp_forest:
-            kelp.update()
-
-        # 更新背景粒子
+            kelp.update(day_night_factor)
         self.update_background_particles()
-
-        # 环境光变化（模拟水波光影）
-        time_factor = pygame.time.get_ticks() * 0.001
-        self.ambient_light = 0.8 + math.sin(time_factor * 0.5) * 0.2
+        self.ambient_light = 0.8 + math.sin(pygame.time.get_ticks() * 0.001) * 0.2 * day_night_factor
+        blue_tint = int(100 * (0.5 + 0.5 * day_night_factor))
+        self.water_tint = (0, 50, blue_tint, 30)
 
     def update_bubbles(self):
         """更新气泡系统"""
-        # 随机生成新气泡
         if random.random() < self.bubble_spawn_rate:
             x = random.uniform(0, Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH)
             y = Config.WINDOW_HEIGHT + 10
             self.bubbles.append(Bubble(x, y))
-
-        # 更新现有气泡
         for bubble in self.bubbles[:]:
             bubble.update()
             if bubble.is_dead():
@@ -172,14 +150,9 @@ class Environment:
     def update_background_particles(self):
         """更新背景浮游生物"""
         for particle in self.background_particles:
-            # 更新位置
             particle['pos'] += particle['vel']
-
-            # 轻微的波动效果
             time_factor = pygame.time.get_ticks() * 0.001
             particle['pos'].y += math.sin(time_factor + particle['phase']) * 0.1
-
-            # 边界处理
             if particle['pos'].x < 0:
                 particle['pos'].x = Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH
             elif particle['pos'].x > Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH:
@@ -188,16 +161,27 @@ class Environment:
                 particle['pos'].y = Config.WINDOW_HEIGHT
             elif particle['pos'].y > Config.WINDOW_HEIGHT:
                 particle['pos'].y = 0
+            particle['alpha'] = max(20, min(80, particle['alpha'] + math.sin(time_factor + particle['phase']) * 2))
 
-            # 透明度波动
-            particle['alpha'] = max(20, min(80,
-                                            particle['alpha'] + math.sin(time_factor + particle['phase']) * 2))
+    def get_global_water_force(self):
+        """获取全局水流力"""
+        total_force = pygame.math.Vector2(0, 0)
+        if not self.water_currents:
+            return total_force
+        for current in self.water_currents:
+            # 使用屏幕中心位置计算平均水流力
+            center_pos = pygame.math.Vector2(
+                (Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH) / 2,
+                Config.WINDOW_HEIGHT / 2
+            )
+            total_force += current.get_force_at_position(center_pos)
+        return total_force / len(self.water_currents) if self.water_currents else pygame.math.Vector2(0, 0)
 
-    def get_water_force_at_position(self, position):
+    def get_water_force_at_position(self, position, day_night_factor=1.0):
         """获取指定位置的水流力（供鱼儿使用）"""
         total_force = pygame.math.Vector2(0, 0)
         for current in self.water_currents:
-            total_force += current.get_force_at_position(position)
+            total_force += current.get_force_at_position(position, day_night_factor)
         return total_force
 
     def add_bubble_at_position(self, x, y):
@@ -215,11 +199,12 @@ class Environment:
                 })
         return obstacles
 
-    def get_kelp_resistance(self, position, velocity):
+    def get_kelp_resistance(self, position, velocity, day_night_factor=1.0):
+        """获取海带阻力，夜间稍弱"""
         resistance = pygame.math.Vector2(0, 0)
         for kelp in self.kelp_forest:
             for segment in kelp.segments:
                 distance = position.distance_to(segment)
                 if distance < 20:
-                    resistance -= velocity * (1 - distance / 20) * 0.3
+                    resistance -= velocity * (1 - distance / 20) * 0.3 * (0.7 + 0.3 * day_night_factor)
         return resistance

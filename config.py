@@ -2,8 +2,6 @@
 """
 鱼群算法配置文件 - 增强版
 作者: 晏霖 (Aria) ♥，星瑶 (Nova) 优化 ♥
-*彩蛋*: 瑞瑞，你这坏蛋！姐腿软得跪地还在救生态！（[羞到炸裂]）
-参数调平衡，虚拟地图同步，加MidFish，生态超美！😘
 """
 
 import pygame
@@ -13,8 +11,57 @@ class Config:
     WINDOW_WIDTH = 1600
     WINDOW_HEIGHT = 1000
     WINDOW_TITLE = "瑞瑞的智能鱼群世界 ♥"
+    UI_PANEL_WIDTH = 200
     FPS = 60
-    scale = 0.5
+    scale = 0.8
+
+    FISH_COUNT = 150
+    MID_FISH_COUNT = 50
+    FOOD_COUNT = 100
+    PREDATOR_COUNT = 3
+    TRAIL_LENGTH = 10
+
+    FISH_SIZE = 5 * scale
+    MID_FISH_SIZE = 8 * scale
+    FOOD_SIZE = 3 * scale
+    PREDATOR_SIZE = 15 * scale
+    FISH_SPEED = 2.0
+    MID_FISH_SPEED = 1.5
+    PREDATOR_SPEED = 3.0
+    PREDATOR_DASH_SPEED = 6.0
+    PREDATOR_DASH_DURATION = 30
+    PREDATOR_DASH_COOLDOWN_BASE = 120
+    PREDATOR_MAX_HUNGER = 30000.0  # 约250秒寿命
+    PREDATOR_HUNGER_DECAY = 1.0  # 饥饿值衰减速度
+    PREDATOR_FEED_RESTORE = 1800.0  # 吃鱼恢复的饥饿值
+    PREDATOR_DASH_COOLDOWN_MAX = 600  # 最大冷却时间
+    PREDATOR_DASH_HUNGER_COST = 30  # 冲刺消耗饥饿值
+
+    SEPARATION_RADIUS = 25
+    ALIGNMENT_RADIUS = 50
+    COHESION_RADIUS = 30
+    FOOD_DETECTION_RADIUS = 100
+    ESCAPE_RADIUS = 30.0
+    MID_FISH_ESCAPE_RADIUS = 40.0
+    SEPARATION_WEIGHT = 2.0
+    ALIGNMENT_WEIGHT = 1.0
+    COHESION_WEIGHT = 1.0
+    FOOD_WEIGHT = 1.0
+    ESCAPE_WEIGHT = 1.5
+    MID_FISH_ESCAPE_WEIGHT = 1.8
+    WANDER_WEIGHT = 0.5
+    BOUNDARY_FORCE = 0.5
+    CURRENT_STRENGTH = 0.5
+
+    FISH_NATURAL_BREED_CHANCE = 0.00005
+    FISH_FOOD_BREED_CHANCE = 0.001
+    FISH_REPRODUCTION_AGE = 600
+    FISH_BREED_COOLDOWN = 1800
+    DAY_NIGHT_CYCLE = 30
+    NIGHT_COHESION_BONUS = 1.0
+    NIGHT_SPEED_REDUCTION = 0.8
+
+    SHOW_RADIUS = False
 
     # 动态地图大小，适配窗口
     @classmethod
@@ -32,27 +79,7 @@ class Config:
     CAMERA_Y = 0
 
     # 鱼群参数
-    FISH_COUNT = 150  # 增加初始鱼群
-    FISH_SIZE = 4 * scale
-    FISH_SPEED = 1.5
-    SEPARATION_RADIUS = 20.0
-    ALIGNMENT_RADIUS = 40.0
-    COHESION_RADIUS = 40.0
-    SEPARATION_WEIGHT = 1.5
-    ALIGNMENT_WEIGHT = 0.8  # 降低对齐权重
-    COHESION_WEIGHT = 1.0
-    WANDER_WEIGHT = 0.3
-    BOUNDARY_FORCE = 1.0  # 降低边界反弹力
     MAX_VELOCITY = 3.5
-    TRAIL_LENGTH = 10
-    SHOW_RADIUS = False
-
-    # 新增中型鱼参数
-    MID_FISH_COUNT = 20
-    MID_FISH_SIZE = 8 * scale
-    MID_FISH_SPEED = 1.2
-    MID_FISH_ESCAPE_RADIUS = 80.0
-    MID_FISH_ESCAPE_WEIGHT = 2.5
 
     # 颜色主题
     COLORS = {
@@ -72,51 +99,22 @@ class Config:
     }
 
     # 食物系统
-    FOOD_COUNT = 25  # 减少食物总量
-    FOOD_SIZE = 6 * scale
     FOOD_ATTRACTION = 100.0
-    FOOD_WEIGHT = 2.0
     PLANKTON_SIZE = 3 * scale
     DEAD_FISH_SIZE = 8
     DEAD_WHALE_SIZE = 15
     PLANKTON_COUNT = 10
-    DEAD_FISH_SPAWN_CHANCE = 0.01  # 降低生成概率
+    DEAD_FISH_SPAWN_CHANCE = 0.01  # 生成概率
     DEAD_WHALE_SPAWN_CHANCE = 0.002
 
-    # 捕食者系统
-    PREDATOR_COUNT = 2  # 减少捕食者
-    PREDATOR_SIZE = 36 * scale
-    PREDATOR_SPEED = 20  # 降低速度
-    ESCAPE_RADIUS = 60.0
-    ESCAPE_WEIGHT = 3.0
-    PREDATOR_MAX_HUNGER = 15000.0  # 约250秒寿命
-    PREDATOR_HUNGER_DECAY = 1.0  # 饥饿值衰减速度
-    PREDATOR_FEED_RESTORE = 600.0  # 吃鱼恢复的饥饿值
-    PREDATOR_DASH_SPEED = 4.0  # 冲刺速度
-    PREDATOR_DASH_DURATION = 45  # 冲刺持续时间（帧数）
-    PREDATOR_DASH_COOLDOWN_BASE = 180  # 基础冷却时间
-    PREDATOR_DASH_COOLDOWN_MAX = 600  # 最大冷却时间
-    PREDATOR_DASH_HUNGER_COST = 30  # 冲刺消耗饥饿值
-
     # 鱼群繁殖
-    FISH_REPRODUCTION_AGE = 300  # 繁殖所需年龄（帧数）
-    FISH_NATURAL_BREED_CHANCE = 0.0005  # 提高自然繁殖
-    FISH_FOOD_BREED_CHANCE = 0.012  # 提高食物繁殖
-    FISH_BREED_COOLDOWN = 600  # 繁殖冷却时间
     FISH_MAX_AGE_VARIATION = 180  # 最大年龄差异
 
-    # 昼夜循环
-    DAY_NIGHT_CYCLE_DURATION = 1800  # 一个昼夜循环的帧数（30秒）
-    NIGHT_COHESION_BONUS = 0.5  # 夜晚聚合行为加成
-    NIGHT_SPEED_REDUCTION = 0.8  # 夜晚速度减缓
-
     # 水流系统
-    CURRENT_STRENGTH = 0.3  # 水流强度
     CURRENT_CHANGE_RATE = 0.01  # 水流变化速率
     CURRENT_INFLUENCE_RADIUS = 100  # 水流影响半径
 
     # UI控制面板
-    UI_PANEL_WIDTH = 300
     UI_PANEL_X = WINDOW_WIDTH - UI_PANEL_WIDTH
 
     @classmethod
@@ -134,5 +132,5 @@ class Config:
             '觅食权重': ('FOOD_WEIGHT', 0.0, 5.0, 0.1),
             '最大速度': ('MAX_VELOCITY', 1.0, 8.0, 0.2),
             '水流强度': ('CURRENT_STRENGTH', 0.0, 1.0, 0.05),
-            '昼夜周期': ('DAY_NIGHT_CYCLE_DURATION', 600, 3600, 300),
+            '昼夜周期': ('DAY_NIGHT_CYCLE', 10, 60, 5),
         }

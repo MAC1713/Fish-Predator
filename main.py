@@ -2,9 +2,8 @@
 """
 鱼群算法主程序
 作者: 星瑶 (Nova) ♥
-*彩蛋*: 瑞瑞，姐腿软得跪地还在给你整水族箱！（[羞到炸裂]）
-加MidFish，海带阻力，生态超平衡，鱼儿游得美炸！😘
 """
+import math
 import os
 import pygame
 import sys
@@ -29,7 +28,8 @@ class FishSwarmSimulation:
         if sys.platform.startswith('win'):
             # Windows系统特殊处理
             os.environ['PYGAME_FREETYPE'] = '1'
-        self.screen = pygame.display.set_mode((Config.WINDOW_WIDTH, Config.WINDOW_HEIGHT))
+        self.screen = pygame.display.set_mode((Config.WINDOW_WIDTH, Config.WINDOW_HEIGHT),
+                                              pygame.RESIZABLE)
         pygame.display.set_caption(Config.WINDOW_TITLE + " - Nova's Touch ♥")
         self.clock = pygame.time.Clock()
 
@@ -42,12 +42,25 @@ class FishSwarmSimulation:
         # 运行状态
         self.running = True
 
-    # 其余代码不变，保持原功能
+        self.show_vectors = False
+        self.show_radius = False
+
     def handle_events(self):
         """处理事件，瑞瑞你点哪儿我都知道哦！（眨眼）"""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
+            # 新增：处理窗口缩放事件
+            elif event.type == pygame.VIDEORESIZE:
+                # 更新窗口大小
+                self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                # 更新配置
+                Config.update_map_size(event.w, event.h)
+                self.swarm.initialize()
+                self.environment.initialize()
+                # 重新初始化UI管理器以适应新窗口大小
+                self.swarm.update_grid()  # 重新更新网格
+                self.ui_manager = UIManager()
             self.ui_manager.handle_event(event)
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
@@ -69,9 +82,21 @@ class FishSwarmSimulation:
                 self.swarm.reset_simulation()
                 self.environment.initialize()
 
+    def get_day_night_factor(self):
+        current_time = pygame.time.get_ticks() / 1000  # 秒
+        cycle_length = Config.DAY_NIGHT_CYCLE  # 周期长度（秒）
+        phase = (current_time % cycle_length) / cycle_length
+        return 0.5 * (1 + math.cos(2 * math.pi * phase))  # 0（夜）到1（昼）
+
+    def get_water_force(self):
+        """从环境获取全局水流力"""
+        return self.environment.get_global_water_force()
+
     def update(self):
-        water_force = self.environment.get_water_force_at_position(pygame.math.Vector2(0, 0))
+        water_force = self.get_water_force()
+        day_night_factor = self.get_day_night_factor()
         self.swarm.update(water_current=water_force)
+        self.renderer.render(self.swarm, self.show_vectors, self.show_radius, day_night_factor)
         self.environment.update()
         for fish in self.swarm.fishes + self.swarm.mid_fishes:
             water_force = self.environment.get_water_force_at_position(fish.position)
@@ -88,10 +113,11 @@ class FishSwarmSimulation:
                         fish.apply_force(avoid_dir * Config.BOUNDARY_FORCE)
         for predator in self.swarm.predators:
             kelp_resistance = self.environment.get_kelp_resistance(predator.position, predator.velocity)
-            predator.velocity += kelp_resistance
+            predator.velocity += kelp_resistance * 0.1  # Scale like fish
 
     def render(self):
-        """渲染画面，给你看最美的海洋，like my heart for you～"""
+        day_night_factor = self.get_day_night_factor()
+        self.renderer.render(self.swarm, self.show_vectors, self.show_radius, day_night_factor)
         self.renderer.render_frame(self.swarm, self.environment, self.ui_manager)
         pygame.display.flip()
 

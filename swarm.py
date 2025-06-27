@@ -2,8 +2,6 @@
 """
 鱼群管理器
 作者: 晏霖 (Aria) ♥，星瑶 (Nova) 优化 ♥
-*彩蛋*: 瑞瑞，姐腿麻还在救你水族箱！（[羞到炸裂]）
-加MidFish，食物分散，捕食者平衡，生态超稳！😘
 """
 
 import math
@@ -41,7 +39,9 @@ class Food:
             self.position += water_current * 0.05
         elif self.food_type in ['small_fish', 'large_corpse']:
             self.position += self.velocity
-        if self.position.y > Config.WINDOW_HEIGHT + 50 or self.position.x < 0 or self.position.x > Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH:
+        if (self.position.y > Config.WINDOW_HEIGHT + 50 or
+                self.position.x < 0 or
+                self.position.x > Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH):
             self.consumed = True
 
     def is_consumed(self, fish):
@@ -49,17 +49,20 @@ class Food:
         return distance < self.size + fish.size
 
 
+def limit_vector(vector, max_magnitude):
+    if vector.length() > max_magnitude:
+        return vector.normalize() * max_magnitude
+    return vector
+
+
 class Predator:
-    """增强版捕食者类 - 具有寿命、冲刺和智能狩猎系统"""
+    """增强版捕食者类 - 具有寿命、冲刺、视觉效果和成长系统"""
 
     def __init__(self, x, y):
         self.position = Vector2(x, y)
-        self.velocity = Vector2(
-            random.uniform(-1, 1),
-            random.uniform(-1, 1)
-        ).normalize() * Config.PREDATOR_SPEED
-        self.size = Config.PREDATOR_SIZE
-        self.max_speed = Config.PREDATOR_SPEED
+        self.velocity = Vector2(random.uniform(-1, 1), random.uniform(-1, 1)).normalize() * Config.PREDATOR_SPEED
+        self.size = Config.PREDATOR_SIZE * 0.7
+        self.max_speed = Config.PREDATOR_SPEED * 1.2
         self.hunt_target = None
         self.hunger = Config.PREDATOR_MAX_HUNGER
         self.is_alive = True
@@ -69,18 +72,21 @@ class Predator:
         self.dash_timer = 0
         self.dash_cooldown = 0
         self.dash_direction = Vector2(0, 0)
-        self.kills_this_minute = 0
-        self.last_kill_time = 0
+        self.age = 0
+        self.max_age = 18000  # ~5 min
+        self.growth_stage = 'juvenile'
 
-    def update(self, fishes, mid_fishes, current_time):
+    def update(self, fishes, mid_fishes, current_time, swarm):
         if not self.is_alive:
             return
+        self.age += 1
         self.hunger -= Config.PREDATOR_HUNGER_DECAY
-        if self.hunger <= 0:
+        if self.hunger <= 0 or self.age > self.max_age:
             self.is_alive = False
+            swarm.foods.append(Food(self.position.x, self.position.y, 'large_corpse'))
             return
+        self.update_growth()
         self.update_dash()
-        self.clean_kill_frequency(current_time)
         self.check_feed(fishes, mid_fishes, current_time)
         if self.is_dashing:
             self.velocity = self.dash_direction * Config.PREDATOR_DASH_SPEED
@@ -88,33 +94,68 @@ class Predator:
             self.hunt_behavior(fishes, mid_fishes, current_time)
         self.position += self.velocity
         self.handle_boundaries()
+        if self.growth_stage == 'adult' and random.random() < 0.0001:
+            self.attempt_mating(current_time, swarm)
+
+    def update_growth(self):
+        if self.age < 3600:  # ~1 min
+            self.growth_stage = 'juvenile'
+            self.size = Config.PREDATOR_SIZE * 0.7
+            self.max_speed = Config.PREDATOR_SPEED * 1.2
+        elif self.age < 10800:  # ~3 min
+            self.growth_stage = 'adult'
+            self.size = Config.PREDATOR_SIZE
+            self.max_speed = Config.PREDATOR_SPEED
+        else:
+            self.growth_stage = 'senior'
+            self.size = Config.PREDATOR_SIZE * 1.2
+            self.max_speed = Config.PREDATOR_SPEED * 0.8
+
+    def attempt_mating(self, current_time, swarm):
+        for other in swarm.predators:
+            if (other != self and other.growth_stage == 'adult' and other.is_alive and
+                    self.position.distance_to(other.position) < 100):
+                offspring_x = (self.position.x + other.position.x) / 2
+                offspring_y = (self.position.y + other.position.y) / 2
+                swarm.predators.append(Predator(offspring_x, offspring_y))
+                break
 
     def check_feed(self, fishes, mid_fishes, current_time):
+        if self.hunger >= Config.PREDATOR_MAX_HUNGER * 0.8:
+            return  # 饱了不吃
         for fish in fishes[:]:
-            distance = self.position.distance_to(fish.position)
-            if distance < self.size + fish.size:
+            if self.position.distance_to(fish.position) < self.size + fish.size:
                 fish.is_alive = False
                 self.feed_on_fish(current_time)
-                break
+                return  # 一次只吃一条
         for mid_fish in mid_fishes[:]:
-            distance = self.position.distance_to(mid_fish.position)
-            if distance < self.size + mid_fish.size:
+            if self.position.distance_to(mid_fish.position) < self.size + mid_fish.size:
                 mid_fish.is_alive = False
                 self.feed_on_fish(current_time)
-                break
+                return  # 一次只吃一条
 
     def hunt_behavior(self, fishes, mid_fishes, current_time):
+        hunger_ratio = self.get_hunger_ratio()
+        if hunger_ratio >= 0.8:  # 饱了，懒散模式
+            self.wander()
+            self.hunt_target = None
+            return
+
         targets = [(f, f.position, f.max_speed) for f in fishes if f.is_alive] + \
                   [(m, m.position, m.max_speed) for m in mid_fishes if m.is_alive]
         if not targets:
             self.wander()
             return
+
+        # 根据饥饿度调整捕食范围
+        detection_range = 500 * (1.0 - hunger_ratio)  # 越饿范围越大，最大500
         target_candidates = []
         for target, pos, speed in targets:
             distance = self.position.distance_to(pos)
-            if distance < 250:
-                priority = (300 - distance) + (2.0 - speed) * 50
+            if distance < detection_range:
+                priority = (detection_range - distance) + (2.0 - speed) * 50
                 target_candidates.append((target, priority, distance))
+
         if target_candidates:
             target_candidates.sort(key=lambda x: x[1], reverse=True)
             best_target, _, distance = target_candidates[0]
@@ -131,10 +172,14 @@ class Predator:
     def should_initiate_dash(self, target_distance, current_time):
         if not (40 < target_distance < 120):
             return False
-        hunger_factor = (Config.PREDATOR_MAX_HUNGER - self.hunger) / Config.PREDATOR_MAX_HUNGER
+        hunger_ratio = self.get_hunger_ratio()
+        if hunger_ratio >= 0.8:  # 饱了不冲刺
+            return False
+        # 越饿冲刺概率越高
+        hunger_factor = (1.0 - hunger_ratio)  # 0.2到1.0
         recent_kills = len([t for t in self.feed_frequency if current_time - t < 3600])
         kill_penalty = min(recent_kills * 0.3, 0.8)
-        dash_probability = 0.02 + hunger_factor * 0.03 - kill_penalty
+        dash_probability = 0.01 + hunger_factor * 0.05 - kill_penalty
         return random.random() < dash_probability
 
     def initiate_dash(self, target):
@@ -142,14 +187,10 @@ class Predator:
         self.dash_timer = Config.PREDATOR_DASH_DURATION
         target_future_pos = target.position + target.velocity * 10
         dash_direction = target_future_pos - self.position
-        if dash_direction.length() > 0:
-            self.dash_direction = dash_direction.normalize()
-        else:
-            self.dash_direction = self.velocity.normalize()
+        self.dash_direction = dash_direction.normalize() if dash_direction.length() > 0 else self.velocity.normalize()
         self.hunger -= Config.PREDATOR_DASH_HUNGER_COST
         recent_kills = len(self.feed_frequency)
-        cooldown_multiplier = 1.0 + min(recent_kills * 0.5, 3.0)
-        self.dash_cooldown = int(Config.PREDATOR_DASH_COOLDOWN_BASE * cooldown_multiplier)
+        self.dash_cooldown = int(Config.PREDATOR_DASH_COOLDOWN_BASE * (1.0 + min(recent_kills * 0.5, 3.0)))
 
     def update_dash(self):
         if self.is_dashing:
@@ -166,29 +207,21 @@ class Predator:
         if desired.length() > 0:
             desired = desired.normalize() * self.max_speed
             steer = desired - self.velocity
-            steer = self.limit_vector(steer, 0.15)
+            steer = limit_vector(steer, 0.15)
             self.velocity += steer
-            self.velocity = self.limit_vector(self.velocity, self.max_speed)
+            self.velocity = limit_vector(self.velocity, self.max_speed)
 
     def wander(self):
         if random.random() < 0.03:
             angle = random.uniform(0, 2 * math.pi)
-            self.velocity = Vector2(
-                math.cos(angle),
-                math.sin(angle)
-            ) * self.max_speed * 0.7
+            self.velocity = Vector2(math.cos(angle), math.sin(angle)) * self.max_speed * 0.7
 
     def feed_on_fish(self, current_time):
-        self.hunger = min(Config.PREDATOR_MAX_HUNGER,
-                          self.hunger + Config.PREDATOR_FEED_RESTORE)
+        self.hunger = min(Config.PREDATOR_MAX_HUNGER, self.hunger + Config.PREDATOR_FEED_RESTORE)
         self.last_feed_time = current_time
         self.feed_frequency.append(current_time)
         if len(self.feed_frequency) > 10:
             self.feed_frequency.pop(0)
-
-    def clean_kill_frequency(self, current_time):
-        self.feed_frequency = [t for t in self.feed_frequency
-                               if current_time - t < 18000]
 
     def handle_boundaries(self):
         margin = 30
@@ -204,19 +237,8 @@ class Predator:
             self.velocity.y = -abs(self.velocity.y)
             self.position.y = Config.WINDOW_HEIGHT - margin
 
-    def limit_vector(self, vector, max_magnitude):
-        if vector.length() > max_magnitude:
-            return vector.normalize() * max_magnitude
-        return vector
-
     def get_hunger_ratio(self):
         return self.hunger / Config.PREDATOR_MAX_HUNGER
-
-    def is_in_dash_range(self, target_pos):
-        if not self.is_dashing:
-            return False
-        distance = self.position.distance_to(target_pos)
-        return distance < self.size + 5
 
 
 class Swarm:
@@ -225,6 +247,8 @@ class Swarm:
         self.mid_fishes = []
         self.foods = []
         self.predators = []
+        self.grid = {}
+        self.grid_size = 50
         self.initialize()
         self.stats = {
             'fish_count': 0,
@@ -239,6 +263,41 @@ class Swarm:
         self.create_mid_fishes(Config.MID_FISH_COUNT)
         self.create_foods(Config.FOOD_COUNT)
         self.create_predators(Config.PREDATOR_COUNT)
+
+    def update_grid(self):
+        self.grid.clear()  # 清空旧的网格
+        for fish in self.fishes + self.mid_fishes:
+            if fish.is_alive:
+                grid_x = int(fish.position.x // self.grid_size)
+                grid_y = int(fish.position.y // self.grid_size)
+                # 如果网格坐标不存在，初始化为空列表
+                if (grid_x, grid_y) not in self.grid:
+                    self.grid[(grid_x, grid_y)] = []
+                self.grid[(grid_x, grid_y)].append(fish)
+
+    def get_neighbors(self, fish, radius):
+        grid_x = int(fish.position.x // self.grid_size)
+        grid_y = int(fish.position.y // self.grid_size)
+        neighbors = []
+        map_width = Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH
+        grid_width = int(map_width // self.grid_size)
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                nx = (grid_x + dx) % grid_width  # 循环边界
+                ny = grid_y + dy
+                if (nx, ny) in self.grid:
+                    for other in self.grid[(nx, ny)]:
+                        if other != fish:
+                            # 计算循环边界距离
+                            dx = other.position.x - fish.position.x
+                            if dx > map_width / 2:
+                                dx -= map_width
+                            elif dx < -map_width / 2:
+                                dx += map_width
+                            distance = pygame.math.Vector2(dx, other.position.y - fish.position.y).length()
+                            if distance < radius:
+                                neighbors.append(other)
+        return neighbors
 
     def create_fishes(self, count):
         self.fishes.clear()
@@ -292,26 +351,32 @@ class Swarm:
             y = random.uniform(50, Config.WINDOW_HEIGHT - 50)
             self.predators.append(Predator(x, y))
 
-    def update(self, water_current=None):
+    def update(self, water_current=None, day_night_factor=1.0):
         current_time = pygame.time.get_ticks()
+        total_fish_count = len(self.fishes) + len(self.mid_fishes)
+        self.update_grid()
         for fish in self.fishes[:]:
-            fish.update(self.fishes, self.foods, self.predators, current_time, water_current=water_current)
+            neighbors = self.get_neighbors(fish, Config.COHESION_RADIUS)
+            fish.update(neighbors, self.foods, self.predators, current_time, day_night_factor, water_current)
             if not fish.is_alive:
                 self.fishes.remove(fish)
-            elif fish.can_reproduce:
+                self.foods.append(Food(fish.position.x, fish.position.y, 'small_fish'))
+            elif total_fish_count < 300 and fish.can_reproduce:
                 offspring = fish.attempt_reproduction(current_time)
                 if offspring:
                     self.fishes.append(offspring)
         for mid_fish in self.mid_fishes[:]:
-            mid_fish.update(self.mid_fishes, self.foods, self.predators, current_time, water_current=water_current)
+            neighbors = self.get_neighbors(mid_fish, Config.COHESION_RADIUS * 1.5)
+            mid_fish.update(neighbors, self.foods, self.predators, current_time, day_night_factor, water_current)
             if not mid_fish.is_alive:
-                self.mid_fishes.remove(mid_fish)
-            elif mid_fish.can_reproduce:
+                self.mid_fishes.remove(mid_fish)  # Fixed from 'fish' to 'mid_fish'
+                self.foods.append(Food(mid_fish.position.x, mid_fish.position.y, 'small_fish'))
+            elif total_fish_count < 300 and mid_fish.can_reproduce:
                 offspring = mid_fish.attempt_reproduction(current_time)
                 if offspring:
                     self.mid_fishes.append(offspring)
         for predator in self.predators[:]:
-            predator.update(self.fishes, self.mid_fishes, current_time)
+            predator.update(self.fishes, self.mid_fishes, current_time, self)
             if not predator.is_alive:
                 self.predators.remove(predator)
         for food in self.foods[:]:
@@ -342,23 +407,24 @@ class Swarm:
                 self.foods.remove(food)
 
     def respawn_food(self):
-        if len([f for f in self.foods if f.food_type == 'plankton']) < Config.FOOD_COUNT * 0.6:
-            needed = int(Config.FOOD_COUNT * 0.6 - len([f for f in self.foods if f.food_type == 'plankton']))
+        plankton_count = len([f for f in self.foods if f.food_type == 'plankton'])
+        if plankton_count < Config.FOOD_COUNT * 0.6:
+            needed = int(Config.FOOD_COUNT * 0.6 - plankton_count)
             for _ in range(needed):
                 x = random.uniform(50, Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH - 50)
                 y = random.uniform(50, Config.WINDOW_HEIGHT - 50)
                 self.foods.append(Food(x, y, 'plankton'))
-        if random.random() < 0.01:
+        if random.random() < 0.005:  # Reduced spawn rate
             center_x = random.uniform(100, Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH - 100)
             center_y = random.uniform(50, Config.WINDOW_HEIGHT - 50)
-            for _ in range(5):
+            for _ in range(3):  # Fewer small fish
                 x = center_x + random.uniform(-20, 20)
                 y = center_y + random.uniform(-10, 10)
                 self.foods.append(Food(x, y, 'small_fish'))
-        if random.random() < 0.002:
+        if random.random() < 0.001:  # Reduced spawn rate
             center_x = random.uniform(100, Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH - 100)
             center_y = random.uniform(50, Config.WINDOW_HEIGHT - 50)
-            for _ in range(20):
+            for _ in range(10):  # Fewer large corpses
                 x = center_x + random.uniform(-50, 50)
                 y = center_y + random.uniform(-20, 20)
                 self.foods.append(Food(x, y, 'large_corpse'))

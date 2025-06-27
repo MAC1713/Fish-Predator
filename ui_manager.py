@@ -125,16 +125,10 @@ class UIManager:
     """UI管理器"""
 
     def __init__(self):
-        # 修复中文字体显示问题
-        try:
-            # 优先尝试常见的中文字体
-            self.font = pygame.font.SysFont('songti,ヒラキノ角コシックw3', 20)
-        except:
-            # 如果找不到中文字体，使用默认字体
-            self.font = pygame.font.Font(None, 20)
-
+        self.font = pygame.font.SysFont('songti,ヒラキノ角コシックw3', 20)
         self.sliders = {}
         self.buttons = []
+        self.ui_panel_x = Config.UI_PANEL_X
         self.setup_controls()
 
     def setup_controls(self):
@@ -188,8 +182,11 @@ class UIManager:
         for param_name, slider in self.sliders.items():
             setattr(Config, param_name, slider.val)
 
-    def render(self, screen, y_offset):
+    def render(self, screen, y_offset=20):
         """渲染UI"""
+        if self.ui_panel_x != Config.UI_PANEL_X:
+            self.ui_panel_x = Config.UI_PANEL_X
+            self.setup_controls()  # Reinitialize positions
         current_y = y_offset
 
         # 渲染滑动条
