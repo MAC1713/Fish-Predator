@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-中型鱼类
+中型鱼类 - 模拟中型鱼的群体行为和生命周期
 作者: 星瑶 (Nova) ♥
 """
 
@@ -13,10 +13,7 @@ from config import Config
 class MidFish:
     def __init__(self, x, y, parent_age=0):
         self.position = pygame.math.Vector2(x, y)
-        self.velocity = pygame.math.Vector2(
-            random.uniform(-1, 1),
-            random.uniform(-1, 1)
-        ).normalize() * Config.MID_FISH_SPEED
+        self.velocity = pygame.math.Vector2(random.uniform(-1, 1), random.uniform(-1, 1)).normalize() * Config.MID_FISH_SPEED
         self.acceleration = pygame.math.Vector2(0, 0)
         self.age = 0
         self.last_breed_time = 0
@@ -40,6 +37,7 @@ class MidFish:
         self.is_mature = False
 
     def update(self, neighbors, foods=None, predators=None, current_time=0, day_night_factor=1.0, water_current=None):
+        """更新中型鱼状态，包括移动、行为和生命周期"""
         if not self.is_alive:
             return
         if self.age > self.max_age:
@@ -49,15 +47,22 @@ class MidFish:
         if self.age > Config.FISH_REPRODUCTION_AGE * 1.5:
             self.is_mature = True
             self.can_reproduce = (current_time - self.last_breed_time) > Config.FISH_BREED_COOLDOWN * 1.5
-        if predators and any(self.position.distance_to(p.position) < 120 for p in predators if p.is_alive):
-            self.experience += 0.1
+
+        # 优化：仅在捕食者存在时检查距离，避免不必要的计算
+        if predators:
+            for p in predators:
+                if p.is_alive and self.position.distance_to(p.position) < 120:
+                    self.experience += 0.1
+                    break
         else:
             self.experience += 0.01
+
         self.acceleration *= 0
         cohesion_multiplier = 1.0 + (1.0 - day_night_factor) * Config.NIGHT_COHESION_BONUS
         speed_multiplier = day_night_factor * Config.NIGHT_SPEED_REDUCTION + (1.0 - Config.NIGHT_SPEED_REDUCTION)
         self.get_color(day_night_factor)
-        # 用neighbors计算行为
+
+        # 计算群体行为力
         sep = self.separate(neighbors) * Config.SEPARATION_WEIGHT
         ali = self.align(neighbors) * Config.ALIGNMENT_WEIGHT
         coh = self.cohesion(neighbors) * Config.COHESION_WEIGHT * cohesion_multiplier
@@ -66,9 +71,9 @@ class MidFish:
         self.apply_force(ali)
         self.apply_force(coh)
         self.apply_force(wan)
+
         if water_current:
-            current_force = water_current * Config.CURRENT_STRENGTH
-            self.apply_force(current_force)
+            self.apply_force(water_current * Config.CURRENT_STRENGTH)
         if foods:
             food_force = self.seek_food(foods)
             self.apply_force(food_force * Config.FOOD_WEIGHT)
@@ -76,6 +81,7 @@ class MidFish:
             escape_force = self.flee_from_predators(predators)
             experience_multiplier = 1.0 + min(self.experience * 0.1, 0.5)
             self.apply_force(escape_force * Config.MID_FISH_ESCAPE_WEIGHT * experience_multiplier)
+
         self.handle_boundaries()
         self.velocity += self.acceleration
         max_speed = self.max_speed * speed_multiplier
@@ -126,24 +132,24 @@ class MidFish:
         return self.limit_vector(flee_force, self.max_force * 3)
 
     def handle_boundaries(self):
+        """处理边界行为，避免鱼卡在边界"""
         force = pygame.math.Vector2(0, 0)
         margin = 50
         map_width = Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH
         map_height = Config.WINDOW_HEIGHT
-        if self.position.x < 0:
-            self.position.x = 0
-        elif self.position.x > map_width:
-            self.position.x = map_width
-        if self.position.y < 0:
-            self.position.y = 0
-        elif self.position.y > map_height:
-            self.position.y = map_height
 
-        # 上下边界：反弹
+        # 左右边界平滑转向
+        if self.position.x < margin:
+            force.x = Config.BOUNDARY_FORCE
+        elif self.position.x > map_width - margin:
+            force.x = -Config.BOUNDARY_FORCE
+        # 上下边界反弹并限制位置
         if self.position.y < margin:
             force.y = Config.BOUNDARY_FORCE
-        elif self.position.y > Config.WINDOW_HEIGHT - margin:
+            self.position.y = max(margin, self.position.y)
+        elif self.position.y > map_height - margin:
             force.y = -Config.BOUNDARY_FORCE
+            self.position.y = min(map_height - margin, self.position.y)
 
         self.apply_force(force)
 

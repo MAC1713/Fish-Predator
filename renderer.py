@@ -148,4 +148,4 @@ class Renderer:
     def render_frame(self, swarm, environment, ui_manager, day_night_factor=1.0):
         self.render(swarm, False, Config.SHOW_RADIUS, day_night_factor)
         self.render_environment(environment)
-        ui_manager.render(self.screen, y_offset=20)
+        ui_manager.render(self.screen, swarm, day_night_factor)

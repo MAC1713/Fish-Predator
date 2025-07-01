@@ -118,7 +118,8 @@ class FishSwarmSimulation:
     def render(self):
         day_night_factor = self.get_day_night_factor()
         self.renderer.render(self.swarm, self.show_vectors, self.show_radius, day_night_factor)
-        self.renderer.render_frame(self.swarm, self.environment, self.ui_manager)
+        self.renderer.render_frame(self.swarm, self.environment, self.ui_manager)  # 原有调用
+        self.ui_manager.render(self.screen, self.swarm, day_night_factor)  # 新增调用
         pygame.display.flip()
 
     def run(self):
