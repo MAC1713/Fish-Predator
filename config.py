@@ -13,7 +13,7 @@ class Config:
     WINDOW_TITLE = "瑞瑞的智能鱼群世界 ♥"
     UI_PANEL_WIDTH = 200
     FPS = 60
-    scale = 0.8
+    scale = 0.5
 
     FISH_COUNT = 150
     MID_FISH_COUNT = 50
@@ -32,8 +32,9 @@ class Config:
     PREDATOR_DASH_DURATION = 30
     PREDATOR_DASH_COOLDOWN_BASE = 120
     PREDATOR_MAX_HUNGER = 30000.0  # 约250秒寿命
-    PREDATOR_HUNGER_DECAY = 1.0  # 饥饿值衰减速度
-    PREDATOR_FEED_RESTORE = 1800.0  # 吃鱼恢复的饥饿值
+    PREDATOR_HUNGER_DECAY = 20.0  # 饥饿值衰减速度
+    PREDATOR_FEED_RESTORE = 1000.0  # 吃鱼恢复的饥饿值
+    PREDATOR_HUNTER_RANGE_MAX = 500.0  # 最大猎食范围
     PREDATOR_DASH_COOLDOWN_MAX = 600  # 最大冷却时间
     PREDATOR_DASH_HUNGER_COST = 30  # 冲刺消耗饥饿值
 
@@ -89,13 +90,13 @@ class Config:
         'trail': (50, 150, 255),
         'ui_panel': (40, 50, 60),
         'ui_text': (255, 255, 255),
-        'ui_accent': (255, 100, 150),
+        'ui_accent': (255, 255, 0),
         'night_overlay': (10, 10, 30, 100),
         'day_light': (255, 255, 200, 50),
         'plankton': (100, 255, 100),
         'small_fish': (150, 200, 100),
         'large_corpse': (200, 150, 100),
-        'mid_fish_body': (200, 100, 255),  # 中型鱼颜色
+        'mid_fish_body': (255, 150, 100),  # 中型鱼颜色
     }
 
     # 食物系统

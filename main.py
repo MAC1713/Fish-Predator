@@ -12,6 +12,7 @@ from environment import Environment
 from renderer import Renderer
 from ui_manager import UIManager
 from config import Config
+from intelligent_ecosystem_balancer import SmartEcosystemBalancer
 
 
 class FishSwarmSimulation:
@@ -37,7 +38,8 @@ class FishSwarmSimulation:
         self.swarm = Swarm()
         self.environment = Environment()
         self.renderer = Renderer(self.screen)
-        self.ui_manager = UIManager()
+        self.eco_balancer = SmartEcosystemBalancer()
+        self.ui_manager = UIManager(self.eco_balancer)
 
         # 运行状态
         self.running = True
@@ -60,27 +62,16 @@ class FishSwarmSimulation:
                 self.environment.initialize()
                 # 重新初始化UI管理器以适应新窗口大小
                 self.swarm.update_grid()  # 重新更新网格
-                self.ui_manager = UIManager()
-            self.ui_manager.handle_event(event)
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    pos = event.pos
-                    if pos[0] < Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH:
+                self.ui_manager = UIManager(self.eco_balancer)
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                pos = event.pos
+                if pos[0] < Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH:
+                    if event.button == 1:  # 左键添加食物
                         self.swarm.add_food_at_position(pos)
                         self.environment.add_bubble_at_position(pos[0], pos[1])
-                elif event.button == 3:
-                    pos = event.pos
-                    if pos[0] < Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH:
+                    elif event.button == 3:  # 右键添加捕食者
                         self.swarm.add_predator_at_position(pos)
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    self.swarm.reset_simulation()
-                    self.environment.initialize()
-                elif event.key == pygame.K_r:
-                    Config.SHOW_RADIUS = not Config.SHOW_RADIUS
-            if event.type == pygame.USEREVENT and event.action == 'reset':
-                self.swarm.reset_simulation()
-                self.environment.initialize()
+            self.ui_manager.handle_event(event)
 
     def get_day_night_factor(self):
         current_time = pygame.time.get_ticks() / 1000  # 秒
@@ -95,13 +86,14 @@ class FishSwarmSimulation:
     def update(self):
         water_force = self.get_water_force()
         day_night_factor = self.get_day_night_factor()
-        self.swarm.update(water_current=water_force)
-        self.renderer.render(self.swarm, self.show_vectors, self.show_radius, day_night_factor)
-        self.environment.update()
+        self.swarm.update(water_current=water_force, day_night_factor=day_night_factor)
+        if self.ui_manager.balance_enabled:  # Use the toggle state
+            self.eco_balancer.update_balance(self.swarm, current_time=pygame.time.get_ticks() / 1000)
+        self.environment.update(day_night_factor=day_night_factor)
         for fish in self.swarm.fishes + self.swarm.mid_fishes:
-            water_force = self.environment.get_water_force_at_position(fish.position)
+            water_force = self.environment.get_water_force_at_position(fish.position, day_night_factor)
             fish.apply_force(water_force * 0.1)
-            kelp_resistance = self.environment.get_kelp_resistance(fish.position, fish.velocity)
+            kelp_resistance = self.environment.get_kelp_resistance(fish.position, fish.velocity, day_night_factor)
             fish.apply_force(kelp_resistance)
             obstacles = self.environment.get_kelp_obstacles()
             for obstacle in obstacles:
@@ -112,14 +104,16 @@ class FishSwarmSimulation:
                         avoid_dir = avoid_dir.normalize()
                         fish.apply_force(avoid_dir * Config.BOUNDARY_FORCE)
         for predator in self.swarm.predators:
-            kelp_resistance = self.environment.get_kelp_resistance(predator.position, predator.velocity)
-            predator.velocity += kelp_resistance * 0.1  # Scale like fish
+            kelp_resistance = self.environment.get_kelp_resistance(predator.position, predator.velocity, day_night_factor)
+            predator.velocity += kelp_resistance * 0.1
 
     def render(self):
         day_night_factor = self.get_day_night_factor()
-        self.renderer.render(self.swarm, self.show_vectors, self.show_radius, day_night_factor)
-        self.renderer.render_frame(self.swarm, self.environment, self.ui_manager)  # 原有调用
-        self.ui_manager.render(self.screen, self.swarm, day_night_factor)  # 新增调用
+        self.renderer.render_background(day_night_factor)
+        self.renderer.render_fishes(self.swarm.fishes, day_night_factor=day_night_factor)
+        self.renderer.render_mid_fishes(self.swarm.mid_fishes, day_night_factor=day_night_factor)
+        self.renderer.render_frame(self.swarm, self.environment, self.ui_manager, day_night_factor)
+        self.ui_manager.render(self.screen, self.swarm, day_night_factor)
         pygame.display.flip()
 
     def run(self):

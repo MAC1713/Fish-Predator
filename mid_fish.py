@@ -7,6 +7,8 @@
 import math
 import random
 import pygame
+from pygame import Vector2
+
 from config import Config
 
 
@@ -30,7 +32,8 @@ class MidFish:
         self.experience = 0
         self.panic_resistance = age_factor * 0.3
         self.trail = []
-        self.color_offset = random.uniform(0, 360)
+        self.preferred_food = 'small_fish' if random.random() < 0.5 else 'plankton'  # Add food preference
+        self.color_offset = random.random() * math.pi * 2
         self.fear_level = 0
         self.target_food = None
         self.energy = 100 + random.randint(-20, 20)
@@ -221,20 +224,19 @@ class MidFish:
         return steer
 
     def seek_food(self, foods):
+        """Seek preferred food type first, fall back to others if none available."""
         if not foods:
-            return pygame.math.Vector2(0, 0)
-        closest_food = None
-        min_distance = Config.FOOD_ATTRACTION * 1.5
-        for food in foods:
-            if food.food_type in ['plankton', 'small_fish']:
-                distance = self.position.distance_to(food.position)
-                if distance < min_distance:
-                    min_distance = distance
-                    closest_food = food
-        if closest_food:
-            self.target_food = closest_food
-            return self.seek(closest_food.position)
-        return pygame.math.Vector2(0, 0)
+            return Vector2(0, 0)
+        preferred_foods = [f for f in foods if f.food_type == self.preferred_food and not f.consumed]
+        other_foods = [f for f in foods if f.food_type != self.preferred_food and not f.consumed]
+        target_foods = preferred_foods if preferred_foods else other_foods
+        if not target_foods:
+            return Vector2(0, 0)
+        closest_food = min(target_foods, key=lambda f: self.position.distance_to(f.position))
+        desired = closest_food.position - self.position
+        desired = desired.normalize() * self.max_speed
+        steer = desired - self.velocity
+        return self.limit_vector(steer, self.max_force)
 
     def apply_force(self, force):
         self.acceleration += force
@@ -249,8 +251,24 @@ class MidFish:
         if len(self.trail) > Config.TRAIL_LENGTH:
             self.trail.pop(0)
 
+    def get_shape_points(self):
+        """Calculate points for a mid fish shape with a triangular body and tail."""
+        direction = self.velocity.normalize()
+        perpendicular = Vector2(-direction.y, direction.x)
+        body_length = self.size * 2
+        body_width = self.size
+        tail_length = self.size * 1.5
+        front = self.position + direction * body_length
+        left = self.position - perpendicular * body_width
+        right = self.position + perpendicular * body_width
+        tail_base_left = self.position - perpendicular * (body_width * 0.5)
+        tail_base_right = self.position + perpendicular * (body_width * 0.5)
+        tail_tip = self.position - direction * tail_length
+        return [front, left, right], [tail_base_left, tail_tip, tail_base_right]
+
     def get_color(self, day_night_factor=1.0):
-        base_color = Config.COLORS['mid_fish_body']
+        """Adjust mid fish color based on fear and day-night cycle."""
+        base_color = Config.COLORS['mid_fish_body']  # Adjust if mid fish have a different base color
         if self.fear_level > 0:
             fear_intensity = self.fear_level * 255
             return (

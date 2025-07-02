@@ -135,27 +135,26 @@ class Predator:
                 return  # 一次只吃一条
 
     def hunt_behavior(self, fishes, mid_fishes, current_time):
+        """Hunt with a preference for small fish over mid fish."""
         hunger_ratio = self.get_hunger_ratio()
-        if hunger_ratio >= 0.8:  # 饱了，懒散模式
+        if hunger_ratio >= 0.8:
             self.wander()
             self.hunt_target = None
             return
-
-        targets = [(f, f.position, f.max_speed) for f in fishes if f.is_alive] + \
-                  [(m, m.position, m.max_speed) for m in mid_fishes if m.is_alive]
+        targets = [(f, f.position, f.max_speed, 'small') for f in fishes if f.is_alive] + \
+                  [(m, m.position, m.max_speed, 'mid') for m in mid_fishes if m.is_alive]
         if not targets:
             self.wander()
             return
-
-        # 根据饥饿度调整捕食范围
-        detection_range = 500 * (1.0 - hunger_ratio)  # 越饿范围越大，最大500
+        detection_range = Config.PREDATOR_HUNTER_RANGE_MAX * (1.0 - hunger_ratio)
         target_candidates = []
-        for target, pos, speed in targets:
+        for target, pos, speed, fish_type in targets:
             distance = self.position.distance_to(pos)
             if distance < detection_range:
                 priority = (detection_range - distance) + (2.0 - speed) * 50
+                if fish_type == 'small':
+                    priority *= 1.5  # Increase priority for small fish
                 target_candidates.append((target, priority, distance))
-
         if target_candidates:
             target_candidates.sort(key=lambda x: x[1], reverse=True)
             best_target, _, distance = target_candidates[0]

@@ -82,7 +82,23 @@ class Fish:
         fear_recovery = 0.02 + self.panic_resistance * 0.01
         self.fear_level = max(0, self.fear_level - fear_recovery)
 
+    def get_shape_points(self):
+        """Calculate points for a fish shape with a triangular body and tail."""
+        direction = self.velocity.normalize()
+        perpendicular = Vector2(-direction.y, direction.x)
+        body_length = self.size * 2
+        body_width = self.size
+        tail_length = self.size * 1.5
+        front = self.position + direction * body_length
+        left = self.position - perpendicular * body_width
+        right = self.position + perpendicular * body_width
+        tail_base_left = self.position - perpendicular * (body_width * 0.5)
+        tail_base_right = self.position + perpendicular * (body_width * 0.5)
+        tail_tip = self.position - direction * tail_length
+        return [front, left, right], [tail_base_left, tail_tip, tail_base_right]
+
     def get_color(self, day_night_factor=1.0):
+        """Adjust fish color based on fear and day-night cycle."""
         base_color = Config.COLORS['fish_body']
         if self.fear_level > 0:
             fear_intensity = self.fear_level * 255
