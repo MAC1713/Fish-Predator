@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-中型鱼类 - 模拟中型鱼的群体行为和生命周期
+中型鱼类 - Nova优化版，参数全从Config获取，动态调整丝滑 ♥
 作者: 星瑶 (Nova) ♥
 """
 
@@ -8,50 +8,63 @@ import math
 import random
 import pygame
 from pygame import Vector2
-
 from config import Config
+
+
+def limit_vector(vector, max_magnitude):
+    if vector.length() > max_magnitude:
+        return vector.normalize() * max_magnitude
+    return vector
 
 
 class MidFish:
     def __init__(self, x, y, parent_age=0):
         self.position = pygame.math.Vector2(x, y)
-        self.velocity = pygame.math.Vector2(random.uniform(-1, 1), random.uniform(-1, 1)).normalize() * Config.MID_FISH_SPEED
+        self.velocity = pygame.math.Vector2(random.uniform(-1, 1),
+                                            random.uniform(-1, 1)).normalize() * Config.MID_FISH_SPEED
         self.acceleration = pygame.math.Vector2(0, 0)
         self.age = 0
         self.last_breed_time = 0
         self.can_reproduce = False
+        self.last_reproduction = 0
         self.last_feed_time = 0
         self.is_alive = True
-        self.max_age = random.randint(7200, 14400)  # 1-2分钟寿命
+        self.max_age = random.randint(7200, 14400)
         age_factor = min(parent_age * 0.001, 0.3)
         base_speed_variation = random.uniform(0.7, 1.3)
         age_bonus = age_factor * 0.5
         self.max_speed = Config.MID_FISH_SPEED * (base_speed_variation + age_bonus)
-        self.max_force = 0.06 + age_factor * 0.02
-        self.size = Config.MID_FISH_SIZE * random.uniform(0.8, 1.2)
+        self.max_force = Config.MID_FISH_FORCE + age_factor * 0.02
+        self.size = Config.MID_FISH_SIZE
         self.experience = 0
-        self.panic_resistance = age_factor * 0.3
+        self.panic_resistance = random.uniform(0.5, 1.0)
         self.trail = []
-        self.preferred_food = 'small_fish' if random.random() < 0.5 else 'plankton'  # Add food preference
+        self.preferred_food = 'small_fish' if random.random() < 0.5 else 'plankton'
         self.color_offset = random.random() * math.pi * 2
         self.fear_level = 0
         self.target_food = None
         self.energy = 100 + random.randint(-20, 20)
         self.is_mature = False
 
-    def update(self, neighbors, foods=None, predators=None, current_time=0, day_night_factor=1.0, water_current=None):
-        """更新中型鱼状态，包括移动、行为和生命周期"""
+    def update(self, neighbors, foods=None, predators=None, current_time=0, day_night_factor=1.0, water_current=None,
+               separation_weight=Config.SEPARATION_WEIGHT, alignment_weight=Config.ALIGNMENT_WEIGHT,
+               cohesion_weight=Config.COHESION_WEIGHT, food_weight=Config.FOOD_WEIGHT,
+               escape_weight=Config.MID_FISH_ESCAPE_WEIGHT):
         if not self.is_alive:
             return
         if self.age > self.max_age:
             self.is_alive = False
             return
         self.age += 1
+        # 动态更新参数
+        self.max_speed = Config.MID_FISH_SPEED
+        self.max_force = Config.MID_FISH_FORCE
+        self.size = Config.MID_FISH_SIZE
         if self.age > Config.FISH_REPRODUCTION_AGE * 1.5:
             self.is_mature = True
             self.can_reproduce = (current_time - self.last_breed_time) > Config.FISH_BREED_COOLDOWN * 1.5
-
-        # 优化：仅在捕食者存在时检查距离，避免不必要的计算
+        if current_time - self.last_reproduction > Config.FISH_BREED_COOLDOWN * 1.5:
+            self.can_reproduce = True
         if predators:
             for p in predators:
                 if p.is_alive and self.position.distance_to(p.position) < 120:
@@ -59,49 +72,44 @@ class MidFish:
                     break
         else:
             self.experience += 0.01
-
         self.acceleration *= 0
         cohesion_multiplier = 1.0 + (1.0 - day_night_factor) * Config.NIGHT_COHESION_BONUS
         speed_multiplier = day_night_factor * Config.NIGHT_SPEED_REDUCTION + (1.0 - Config.NIGHT_SPEED_REDUCTION)
         self.get_color(day_night_factor)
-
-        # 计算群体行为力
-        sep = self.separate(neighbors) * Config.SEPARATION_WEIGHT
-        ali = self.align(neighbors) * Config.ALIGNMENT_WEIGHT
-        coh = self.cohesion(neighbors) * Config.COHESION_WEIGHT * cohesion_multiplier
+        sep = self.separate(neighbors) * separation_weight
+        ali = self.align(neighbors) * alignment_weight
+        coh = self.cohesion(neighbors) * cohesion_weight * cohesion_multiplier
         wan = self.wander() * Config.WANDER_WEIGHT
         self.apply_force(sep)
         self.apply_force(ali)
         self.apply_force(coh)
         self.apply_force(wan)
-
         if water_current:
             self.apply_force(water_current * Config.CURRENT_STRENGTH)
         if foods:
             food_force = self.seek_food(foods)
-            self.apply_force(food_force * Config.FOOD_WEIGHT)
+            self.apply_force(food_force * food_weight)
         if predators:
             escape_force = self.flee_from_predators(predators)
             experience_multiplier = 1.0 + min(self.experience * 0.1, 0.5)
-            self.apply_force(escape_force * Config.MID_FISH_ESCAPE_WEIGHT * experience_multiplier)
-
+            self.apply_force(escape_force * escape_weight * experience_multiplier)
         self.handle_boundaries()
         self.velocity += self.acceleration
         max_speed = self.max_speed * speed_multiplier
-        self.velocity = self.limit_vector(self.velocity, max_speed)
+        self.velocity = limit_vector(self.velocity, max_speed)
         self.position += self.velocity
         self.update_trail()
         fear_recovery = 0.02 + self.panic_resistance * 0.01
         self.fear_level = max(0, self.fear_level - fear_recovery)
 
-    def attempt_reproduction(self, current_time):
+    def attempt_reproduction(self, current_time, adjusted_breed_chance):
         if not self.can_reproduce or not self.is_mature or not self.is_alive:
             return None
-        if random.random() < Config.FISH_NATURAL_BREED_CHANCE:
+        if (random.random() < adjusted_breed_chance or
+                (current_time - self.last_feed_time < 300 and random.random() < Config.FISH_FOOD_BREED_CHANCE)):
+            self.last_reproduction = current_time
+            self.can_reproduce = False
             return self.create_offspring(current_time)
-        if current_time - self.last_feed_time < 300:
-            if random.random() < Config.FISH_FOOD_BREED_CHANCE:
-                return self.create_offspring(current_time)
         return None
 
     def create_offspring(self, current_time):
@@ -132,32 +140,27 @@ class MidFish:
                         force_magnitude *= 2.0
                         self.fear_level = min(1.0, self.fear_level + 0.2)
                     flee_force += escape_dir * force_magnitude * 2.5
-        return self.limit_vector(flee_force, self.max_force * 3)
+        return limit_vector(flee_force, self.max_force * 3)
 
     def handle_boundaries(self):
-        """处理边界行为，避免鱼卡在边界"""
         force = pygame.math.Vector2(0, 0)
         margin = 50
         map_width = Config.WINDOW_WIDTH - Config.UI_PANEL_WIDTH
         map_height = Config.WINDOW_HEIGHT
-
-        # 左右边界平滑转向
         if self.position.x < margin:
             force.x = Config.BOUNDARY_FORCE
         elif self.position.x > map_width - margin:
             force.x = -Config.BOUNDARY_FORCE
-        # 上下边界反弹并限制位置
         if self.position.y < margin:
             force.y = Config.BOUNDARY_FORCE
             self.position.y = max(margin, self.position.y)
         elif self.position.y > map_height - margin:
             force.y = -Config.BOUNDARY_FORCE
             self.position.y = min(map_height - margin, self.position.y)
-
         self.apply_force(force)
 
     def separate(self, neighbors):
-        desired_separation = Config.SEPARATION_RADIUS * 1.5
+        desired_separation = Config.MID_FISH_SEPARATION_RADIUS
         steer = pygame.math.Vector2(0, 0)
         count = 0
         for fish in neighbors:
@@ -172,11 +175,11 @@ class MidFish:
             steer /= count
             steer = steer.normalize() * self.max_speed
             steer -= self.velocity
-            steer = self.limit_vector(steer, self.max_force)
+            steer = limit_vector(steer, self.max_force)
         return steer
 
     def align(self, neighbors):
-        neighbor_dist = Config.ALIGNMENT_RADIUS * 1.5
+        neighbor_dist = Config.MID_FISH_ALIGNMENT_RADIUS
         sum_velocity = pygame.math.Vector2(0, 0)
         count = 0
         for fish in neighbors:
@@ -188,12 +191,11 @@ class MidFish:
             sum_velocity /= count
             sum_velocity = sum_velocity.normalize() * self.max_speed
             steer = sum_velocity - self.velocity
-            steer = self.limit_vector(steer, self.max_force)
-            return steer
+            steer = limit_vector(steer, self.max_force)
         return pygame.math.Vector2(0, 0)
 
     def cohesion(self, neighbors):
-        neighbor_dist = Config.COHESION_RADIUS * 1.5
+        neighbor_dist = Config.MID_FISH_COHESION_RADIUS
         sum_position = pygame.math.Vector2(0, 0)
         count = 0
         for fish in neighbors:
@@ -210,7 +212,7 @@ class MidFish:
         desired = target - self.position
         desired = desired.normalize() * self.max_speed
         steer = desired - self.velocity
-        steer = self.limit_vector(steer, self.max_force)
+        steer = limit_vector(steer, self.max_force)
         return steer
 
     def wander(self):
@@ -220,11 +222,10 @@ class MidFish:
             math.sin(wander_angle)
         ) * self.max_speed * 0.5
         steer = desired - self.velocity
-        steer = self.limit_vector(steer, self.max_force * 0.3)
+        steer = limit_vector(steer, self.max_force * 0.3)
         return steer
 
     def seek_food(self, foods):
-        """Seek preferred food type first, fall back to others if none available."""
         if not foods:
             return Vector2(0, 0)
         preferred_foods = [f for f in foods if f.food_type == self.preferred_food and not f.consumed]
@@ -236,15 +237,10 @@ class MidFish:
         desired = closest_food.position - self.position
         desired = desired.normalize() * self.max_speed
         steer = desired - self.velocity
-        return self.limit_vector(steer, self.max_force)
+        return limit_vector(steer, self.max_force)
 
     def apply_force(self, force):
         self.acceleration += force
-
-    def limit_vector(self, vector, max_magnitude):
-        if vector.length() > max_magnitude:
-            return vector.normalize() * max_magnitude
-        return vector
 
     def update_trail(self):
         self.trail.append(self.position.copy())
@@ -252,7 +248,6 @@ class MidFish:
             self.trail.pop(0)
 
     def get_shape_points(self):
-        """Calculate points for a mid fish shape with a triangular body and tail."""
         direction = self.velocity.normalize()
         perpendicular = Vector2(-direction.y, direction.x)
         body_length = self.size * 2
@@ -267,8 +262,7 @@ class MidFish:
         return [front, left, right], [tail_base_left, tail_tip, tail_base_right]
 
     def get_color(self, day_night_factor=1.0):
-        """Adjust mid fish color based on fear and day-night cycle."""
-        base_color = Config.COLORS['mid_fish_body']  # Adjust if mid fish have a different base color
+        base_color = Config.COLORS['mid_fish_body']
         if self.fear_level > 0:
             fear_intensity = self.fear_level * 255
             return (

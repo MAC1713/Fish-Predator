@@ -55,7 +55,7 @@ class Renderer:
             if show_radius:
                 pygame.draw.circle(self.screen, (255, 255, 255, 50),
                                    (int(fish.position.x), int(fish.position.y)),
-                                   int(Config.COHESION_RADIUS), 1)
+                                   int(Config.FISH_COHESION_RADIUS), 1)
 
     def render_mid_fishes(self, mid_fishes, show_vectors=False, show_radius=False, day_night_factor=1.0):
         """Render mid fish with a body and tail shape."""
@@ -72,7 +72,7 @@ class Renderer:
             if show_radius:
                 pygame.draw.circle(self.screen, (255, 255, 255, 50),
                                    (int(fish.position.x), int(fish.position.y)),
-                                   int(Config.COHESION_RADIUS * 1.5), 1)
+                                   int(Config.MID_FISH_COHESION_RADIUS * 1.5), 1)
 
     def render_foods(self, foods):
         for food in foods:

@@ -39,6 +39,7 @@ class FishSwarmSimulation:
         self.environment = Environment()
         self.renderer = Renderer(self.screen)
         self.eco_balancer = SmartEcosystemBalancer()
+        self.swarm.balancer = self.eco_balancer
         self.ui_manager = UIManager(self.eco_balancer)
 
         # 运行状态
@@ -84,11 +85,17 @@ class FishSwarmSimulation:
         return self.environment.get_global_water_force()
 
     def update(self):
+        current_time = pygame.time.get_ticks() / 1000
+        if self.ui_manager.balance_enabled:
+            self.eco_balancer.enabled = True
+            self.eco_balancer.update_balance(self.swarm, current_time)
+        else:
+            self.eco_balancer.enabled = False
         water_force = self.get_water_force()
         day_night_factor = self.get_day_night_factor()
         self.swarm.update(water_current=water_force, day_night_factor=day_night_factor)
         if self.ui_manager.balance_enabled:  # Use the toggle state
-            self.eco_balancer.update_balance(self.swarm, current_time=pygame.time.get_ticks() / 1000)
+            self.eco_balancer.update_balance(self.swarm, current_time)
         self.environment.update(day_night_factor=day_night_factor)
         for fish in self.swarm.fishes + self.swarm.mid_fishes:
             water_force = self.environment.get_water_force_at_position(fish.position, day_night_factor)

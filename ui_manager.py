@@ -22,7 +22,6 @@ class Button:
         self.alpha = 100
         self.state = state
 
-
     def handle_event(self, event):
         """处理按钮的鼠标事件"""
         if event.type == pygame.MOUSEMOTION:
@@ -53,6 +52,7 @@ class Button:
 
 class UIManager:
     def __init__(self, eco_balancer):
+        self.balance_button = None
         self.eco_balancer = eco_balancer
         self.font = pygame.font.SysFont('songti,ヒラキノ角コシックw3', 20)
         self.buttons = []
@@ -75,11 +75,11 @@ class UIManager:
     def setup_controls(self):
         # 数据按钮
         self.buttons.append(Button(
-            Config.WINDOW_WIDTH - 60, 10, 50, 30, "数据", self.toggle_data_window
+            Config.WINDOW_WIDTH - 60, 10, 60, 30, "数据", self.toggle_data_window
         ))
         # 智能平衡开关按钮
         self.balance_button = Button(
-            Config.WINDOW_WIDTH - 60, 50, 50, 30, "平衡 OFF", self.toggle_balance, state='off'
+            Config.WINDOW_WIDTH - 60, 50, 60, 30, "平衡 OFF", self.toggle_balance, state='off'
         )
         self.buttons.append(self.balance_button)
 
@@ -89,6 +89,7 @@ class UIManager:
 
     def toggle_balance(self):
         self.balance_enabled = not self.balance_enabled
+        self.eco_balancer.enabled = self.balance_enabled
 
     def handle_event(self, event):
         """处理UI事件"""
@@ -108,39 +109,66 @@ class UIManager:
                     self.data_history[key].pop(0)
 
     def generate_plot_surface(self):
-        if not self.data_history['time']:
+        if not self.data_history['time'] or len(self.data_history['time']) < 2:
             return None
-        fig, ax = plt.subplots(figsize=(4, 3))
-        ax.plot(self.data_history['time'], self.data_history['fish'], label='小鱼')
-        ax.plot(self.data_history['time'], self.data_history['mid_fish'], label='中鱼')
-        ax.plot(self.data_history['time'], self.data_history['food'], label='食物')
-        ax.plot(self.data_history['time'], self.data_history['predators'], label='捕食者')
-        ax.set_xlabel('时间 (s)')
-        ax.set_ylabel('数量')
-        ax.legend()
-        fig.canvas.draw()
-        plot_data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        plot_data = plot_data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        plot_surface = pygame.surfarray.make_surface(plot_data.swapaxes(0, 1))
-        plt.close(fig)
-        return plot_surface
+        try:
+            plt.rcParams['axes.unicode_minus'] = False
+            plt.rcParams['figure.max_open_warning'] = 0
+            fig, ax = plt.subplots(figsize=(5, 4), dpi=100)
+
+            # 确保有足够的数据点
+            if len(self.data_history['time']) > 0:
+                ax.plot(self.data_history['time'], self.data_history['fish'], label='Fish', color='#1f77b4',
+                        linewidth=2)
+                ax.plot(self.data_history['time'], self.data_history['mid_fish'], label='Mid Fish', color='#ff7f0e',
+                        linewidth=2)
+                ax.plot(self.data_history['time'], self.data_history['food'], label='Food', color='#2ca02c',
+                        linewidth=2)
+                ax.plot(self.data_history['time'], self.data_history['predators'], label='Predator', color='#d62728',
+                        linewidth=2)
+
+            ax.set_xlabel('Time (s)', fontsize=10)
+            ax.set_ylabel('Count', fontsize=10)
+            ax.legend(fontsize=8)
+            ax.grid(True, linestyle='--', alpha=0.7)
+            fig.tight_layout()
+
+            # 关键修复：强制渲染canvas
+            fig.canvas.draw()
+
+            # 获取渲染后的数据
+            plot_data = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+            plot_data = plot_data.reshape(fig.canvas.get_width_height()[::-1] + (4,))[:, :, :3]
+            plot_surface = pygame.surfarray.make_surface(plot_data.swapaxes(0, 1))
+
+            plt.close(fig)
+            return plot_surface
+        except Exception as e:
+            print(f"Error generating plot: {e}")
+            # 返回一个带错误信息的surface
+            error_surface = pygame.Surface((500, 400))
+            error_surface.fill((50, 50, 50))
+            return error_surface
 
     def render_balance_data(self, screen):
         if not self.balance_enabled:
             return
         balance_status = self.eco_balancer.get_balance_status()
-        panel_width = 200
-        panel_height = 100
+        panel_width = 400
+        panel_height = 450
         panel_x = Config.WINDOW_WIDTH - panel_width - 10
-        panel_y = 320
+        panel_y = 170
         panel = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
         panel.fill((50, 50, 50, 150))
         y = 10
         texts = [
-            f"健康度: {balance_status['health_score']:.2f}",
-            f"压力水平: {balance_status['stress_level']:.2f}",
-            f"稳定性: {balance_status['stability_index']:.2f}"
+            f"Health: {balance_status['health_score']:.2f}",
+            f"Stress: {balance_status['stress_level']:.2f}",
+            f"Stability: {balance_status['stability_index']:.2f}",
+            "Adjusted Params:"
         ]
+        for key, value in balance_status['adjusted_params'].items():
+            texts.append(f"  {key}: {value:.4f}")
         for text in texts:
             text_surface = self.font.render(text, True, Config.COLORS['ui_text'])
             panel.blit(text_surface, (10, y))
@@ -150,23 +178,28 @@ class UIManager:
     def render(self, screen, swarm, day_night_factor):
         """渲染UI，包括虚化按钮和弹出窗口"""
         current_time = pygame.time.get_ticks() / 1000.0
+        self.update_data_history(swarm, current_time)
         if current_time - self.last_plot_update >= self.plot_update_interval:
             self.plot_surface = self.generate_plot_surface()
             self.last_plot_update = current_time
         for button in self.buttons:
             button.render(screen, self.font)
-        if self.data_window_open:
+        if self.data_window_open and self.plot_surface:  # Nova: 确保plot_surface存在
             self.render_data_window(screen, swarm, day_night_factor)
         if self.balance_enabled:
             self.render_balance_data(screen)
 
     def render_data_window(self, screen, swarm, day_night_factor):
-        panel_width = 400
-        panel_height = 300
+        panel_width = 500
+        panel_height = 400
         panel_x = Config.WINDOW_WIDTH - panel_width - 10
-        panel_y = 10
+        panel_y = Config.WINDOW_HEIGHT - panel_height - 10
         panel = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
         panel.fill((50, 50, 50, 150))
         if self.plot_surface:
-            panel.blit(self.plot_surface, (10, 10))
+            plot_rect = self.plot_surface.get_rect(topleft=(10, 10))
+            panel.blit(self.plot_surface, plot_rect)
+        else:
+            error_text = self.font.render("No plot data available", True, Config.COLORS['ui_text'])
+            panel.blit(error_text, (10, 10))
         screen.blit(panel, (panel_x, panel_y))
