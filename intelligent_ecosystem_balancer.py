@@ -24,7 +24,7 @@ class PIDController:
 
     def update(self, error: float, dt: float = 1.0) -> float:
         """更新PID"""
-        self.integral = min(self.integral_limit, max(-self.integral_limit, self.a + self.integral_limit + error * dt))
+        self.integral = min(self.integral_limit, max(-self.integral_limit, self.integral_limit + error * dt))
         derivative = (error - self.previous_error) / dt if dt > 0 else 0
         self.previous_error = error
         output = self.kp * error + self.ki * self.integral + self.kd * derivative

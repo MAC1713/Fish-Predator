@@ -49,13 +49,13 @@ class Config:
     PREDATOR_SIZE = 15 * scale  # 捕食者大小，动态调整范围 (20.0, 40.0)
     PREDATOR_SPEED = 3.0  # 捕食者最大速度，动态调整范围 (5.0, 15.0)
     PREDATOR_MAX_FORCE = 0.15  # 捕食者最大加速度，动态调整范围 (0.1, 0.5)
-    PREDATOR_HUNGER_DECAY = 20.0  # 捕食者饥饿衰减速度，动态调整范围 (8.0, 25.0)
+    PREDATOR_HUNGER_DECAY = 2.0  # 捕食者饥饿衰减速度，动态调整范围 (8.0, 25.0)
     PREDATOR_DASH_SPEED = 6.0  # 捕食者冲刺速度
     PREDATOR_DASH_DURATION = 30  # 冲刺持续时间
     PREDATOR_DASH_COOLDOWN_BASE = 120  # 冲刺冷却基础时间
     PREDATOR_MAX_AGE = 60000  # 捕食者最大年龄
-    PREDATOR_MAX_HUNGER = 30000.0  # 捕食者最大饥饿值（约250秒寿命）
-    PREDATOR_FEED_RESTORE = 1000.0  # 吃鱼恢复的饥饿值
+    PREDATOR_MAX_HUNGER = 60000.0  # 捕食者最大饥饿值（约250秒寿命）
+    PREDATOR_FEED_RESTORE = 1500.0  # 吃鱼恢复的饥饿值
     PREDATOR_HUNTER_RANGE_MAX = 500.0  # 最大猎食范围
     PREDATOR_DASH_COOLDOWN_MAX = 600  # 最大冷却时间
     PREDATOR_DASH_HUNGER_COST = 30  # 冲刺消耗饥饿值
@@ -154,7 +154,7 @@ class Config:
             'MID_FISH_FOOD_PREFERENCE': (0.3, 0.9, 0.1),
             'PREDATOR_SPEED': (5.0, 15.0, 0.2),
             'PREDATOR_MAX_FORCE': (0.1, 0.5, 0.01),
-            'PREDATOR_HUNGER_DECAY': (8.0, 25.0, 0.5),
+            'PREDATOR_HUNGER_DECAY': (0.5, 5.0, 0.1),
             'PREDATOR_MAX_HUNGER': (20000.0, 100000.0, 1000.0),
             'PREDATOR_FEED_RESTORE': (500.0, 5000.0, 100.0),
             'PREDATOR_HUNTER_RANGE_MAX': (200.0, 1000.0, 50.0),
