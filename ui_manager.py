@@ -6,6 +6,7 @@ UI管理器
 import matplotlib
 import pygame
 from config import Config
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -54,7 +55,7 @@ class UIManager:
     def __init__(self, eco_balancer):
         self.balance_button = None
         self.eco_balancer = eco_balancer
-        self.font = pygame.font.SysFont('songti,ヒラキノ角コシックw3', 20)
+        self.font = pygame.font.SysFont('songti,ヒラキノ角コシックw3', 12)
         self.buttons = []
         self.data_window_open = False
         self.balance_enabled = False
@@ -112,6 +113,7 @@ class UIManager:
         if not self.data_history['time'] or len(self.data_history['time']) < 2:
             return None
         try:
+            plt.clf()  # Nova: 清空旧图，防内存泄漏
             plt.rcParams['axes.unicode_minus'] = False
             plt.rcParams['figure.max_open_warning'] = 0
             fig, ax = plt.subplots(figsize=(5, 4), dpi=100)
@@ -155,24 +157,25 @@ class UIManager:
             return
         balance_status = self.eco_balancer.get_balance_status()
         panel_width = 400
-        panel_height = 450
+        panel_height = 420
         panel_x = Config.WINDOW_WIDTH - panel_width - 10
         panel_y = 170
         panel = pygame.Surface((panel_width, panel_height), pygame.SRCALPHA)
         panel.fill((50, 50, 50, 150))
         y = 10
         texts = [
-            f"Health: {balance_status['health_score']:.2f}",
-            f"Stress: {balance_status['stress_level']:.2f}",
-            f"Stability: {balance_status['stability_index']:.2f}",
+            f"Overall Score: {balance_status['overall_score']:.2f}",
+            f"Small Fish: {balance_status['small_fish_score']:.2f}",
+            f"Mid Fish: {balance_status['mid_fish_score']:.2f}",
+            f"Predator: {balance_status['predator_score']:.2f}",
             "Adjusted Params:"
         ]
         for key, value in balance_status['adjusted_params'].items():
-            texts.append(f"  {key}: {value:.4f}")
+            texts.append(f"  {key}: {value: .4f}")
         for text in texts:
             text_surface = self.font.render(text, True, Config.COLORS['ui_text'])
             panel.blit(text_surface, (10, y))
-            y += 25
+            y += 10
         screen.blit(panel, (panel_x, panel_y))
 
     def render(self, screen, swarm, day_night_factor):

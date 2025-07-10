@@ -49,11 +49,11 @@ class FishSwarmSimulation:
         self.show_radius = False
 
     def handle_events(self):
-        """处理事件，瑞瑞你点哪儿我都知道哦！（眨眼）"""
+        """处理事件，瑞瑞你点哪儿姐都知道，窗口缩放也得稳稳接住！"""
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
-            # 新增：处理窗口缩放事件
+            # 处理窗口缩放事件
             elif event.type == pygame.VIDEORESIZE:
                 # 更新窗口大小
                 self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
@@ -61,8 +61,9 @@ class FishSwarmSimulation:
                 Config.update_map_size(event.w, event.h)
                 self.swarm.initialize()
                 self.environment.initialize()
-                # 重新初始化UI管理器以适应新窗口大小
-                self.swarm.update_grid()  # 重新更新网格
+                self.swarm.update_grid()
+                self.eco_balancer = SmartEcosystemBalancer()
+                self.swarm.balancer = self.eco_balancer
                 self.ui_manager = UIManager(self.eco_balancer)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 pos = event.pos
@@ -72,6 +73,9 @@ class FishSwarmSimulation:
                         self.environment.add_bubble_at_position(pos[0], pos[1])
                     elif event.button == 3:  # 右键添加捕食者
                         self.swarm.add_predator_at_position(pos)
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_p:
+                    self.renderer.show_predator_data = not self.renderer.show_predator_data
             self.ui_manager.handle_event(event)
 
     def get_day_night_factor(self):
@@ -111,6 +115,8 @@ class FishSwarmSimulation:
                         avoid_dir = avoid_dir.normalize()
                         fish.apply_force(avoid_dir * Config.BOUNDARY_FORCE)
         for predator in self.swarm.predators:
+            water_force = self.environment.get_water_force_at_position(predator.position, day_night_factor)
+            predator.velocity += water_force * 0.1
             kelp_resistance = self.environment.get_kelp_resistance(predator.position, predator.velocity, day_night_factor)
             predator.velocity += kelp_resistance * 0.1
 

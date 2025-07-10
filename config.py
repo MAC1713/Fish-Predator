@@ -41,6 +41,9 @@ class Config:
     MID_FISH_SEPARATION_RADIUS = 37.5  # 中型鱼分离半径，动态调整范围 (15.0, 60.0)
     MID_FISH_ALIGNMENT_RADIUS = 75.0  # 中型鱼对齐半径，动态调整范围 (30.0, 120.0)
     MID_FISH_BREED_CHANCE = 0.0005  # 中型鱼自然繁殖概率，动态调整范围 (0.00003, 0.00015)
+    MID_FISH_BREED_COOLDOWN = 2400  # 中型鱼繁殖冷却时间
+    MID_FISH_FOOD_PREFERENCE = 0.6  # 中型鱼对食物的偏好，越大越倾向Fish，动态调整范围 (0.3, 0.9)
+
 
     # 捕食者参数
     PREDATOR_SIZE = 15 * scale  # 捕食者大小，动态调整范围 (20.0, 40.0)
@@ -50,11 +53,14 @@ class Config:
     PREDATOR_DASH_SPEED = 6.0  # 捕食者冲刺速度
     PREDATOR_DASH_DURATION = 30  # 冲刺持续时间
     PREDATOR_DASH_COOLDOWN_BASE = 120  # 冲刺冷却基础时间
+    PREDATOR_MAX_AGE = 60000  # 捕食者最大年龄
     PREDATOR_MAX_HUNGER = 30000.0  # 捕食者最大饥饿值（约250秒寿命）
     PREDATOR_FEED_RESTORE = 1000.0  # 吃鱼恢复的饥饿值
     PREDATOR_HUNTER_RANGE_MAX = 500.0  # 最大猎食范围
     PREDATOR_DASH_COOLDOWN_MAX = 600  # 最大冷却时间
     PREDATOR_DASH_HUNGER_COST = 30  # 冲刺消耗饥饿值
+    PREDATOR_HUNT_FISH_WEIGHT = 50  # 猎食小鱼的权重
+    PREDATOR_HUNT_MID_FISH_WEIGHT = 80  # 猎食中型鱼的权重
 
     # 行为权重
     SEPARATION_WEIGHT = 2.0  # 分离权重，动态调整范围 (1.0, 3.5)
@@ -132,31 +138,36 @@ class Config:
     def get_adjustable_params(cls):
         """返回可调整参数及其范围，供UI或其他模块使用"""
         return {
-            '鱼群数量': ('FISH_COUNT', 50, 300, 5),
-            '中型鱼数量': ('MID_FISH_COUNT', 10, 50, 5),
-            '食物数量': ('FOOD_COUNT', 50, 200, 5),
-            '小鱼速度': ('FISH_SPEED', 2.0, 8.0, 0.1),
-            '小鱼加速度': ('FISH_FORCE', 0.1, 0.6, 0.01),
-            '小鱼大小': ('FISH_SIZE', 5.0, 15.0, 0.5),
-            '小鱼聚合半径': ('FISH_COHESION_RADIUS', 50.0, 150.0, 5.0),
-            '小鱼分离半径': ('FISH_SEPARATION_RADIUS', 10.0, 50.0, 2.0),
-            '小鱼对齐半径': ('FISH_ALIGNMENT_RADIUS', 20.0, 100.0, 5.0),
-            '中型鱼速度': ('MID_FISH_SPEED', 3.0, 10.0, 0.1),
-            '中型鱼加速度': ('MID_FISH_FORCE', 0.05, 0.3, 0.01),
-            '中型鱼大小': ('MID_FISH_SIZE', 10.0, 20.0, 0.5),
-            '中型鱼聚合半径': ('MID_FISH_COHESION_RADIUS', 75.0, 200.0, 5.0),
-            '中型鱼分离半径': ('MID_FISH_SEPARATION_RADIUS', 15.0, 60.0, 2.0),
-            '中型鱼对齐半径': ('MID_FISH_ALIGNMENT_RADIUS', 30.0, 120.0, 5.0),
-            '捕食者速度': ('PREDATOR_SPEED', 5.0, 15.0, 0.2),
-            '捕食者加速度': ('PREDATOR_MAX_FORCE', 0.1, 0.5, 0.01),
-            '捕食者大小': ('PREDATOR_SIZE', 20.0, 40.0, 0.5),
-            '捕食者饥饿衰减': ('PREDATOR_HUNGER_DECAY', 8.0, 25.0, 0.5),
-            '分离权重': ('SEPARATION_WEIGHT', 1.0, 3.5, 0.1),
-            '对齐权重': ('ALIGNMENT_WEIGHT', 0.5, 2.5, 0.1),
-            '聚合权重': ('COHESION_WEIGHT', 0.5, 2.5, 0.1),
-            '觅食权重': ('FOOD_WEIGHT', 0.5, 2.5, 0.1),
-            '小鱼逃跑权重': ('ESCAPE_WEIGHT', 1.0, 3.0, 0.1),
-            '中型鱼逃跑权重': ('MID_FISH_ESCAPE_WEIGHT', 1.2, 3.5, 0.1),
-            '小鱼繁殖概率': ('FISH_NATURAL_BREED_CHANCE', 0.00005, 0.0002, 0.00001),
-            '中型鱼繁殖概率': ('MID_FISH_BREED_CHANCE', 0.00003, 0.00015, 0.00001),
+            'FISH_COUNT': (50, 300, 5),
+            'MID_FISH_COUNT': (10, 50, 5),
+            'FOOD_COUNT': (50, 200, 5),
+            'FISH_SPEED': (2.0, 8.0, 0.1),
+            'FISH_FORCE': (0.1, 0.6, 0.01),
+            'FISH_COHESION_RADIUS': (50.0, 150.0, 5.0),
+            'FISH_SEPARATION_RADIUS': (10.0, 50.0, 2.0),
+            'FISH_ALIGNMENT_RADIUS': (20.0, 100.0, 5.0),
+            'MID_FISH_SPEED': (3.0, 10.0, 0.1),
+            'MID_FISH_FORCE': (0.05, 0.3, 0.01),
+            'MID_FISH_COHESION_RADIUS': (75.0, 200.0, 5.0),
+            'MID_FISH_SEPARATION_RADIUS': (15.0, 60.0, 2.0),
+            'MID_FISH_ALIGNMENT_RADIUS': (30.0, 120.0, 5.0),
+            'MID_FISH_FOOD_PREFERENCE': (0.3, 0.9, 0.1),
+            'PREDATOR_SPEED': (5.0, 15.0, 0.2),
+            'PREDATOR_MAX_FORCE': (0.1, 0.5, 0.01),
+            'PREDATOR_HUNGER_DECAY': (8.0, 25.0, 0.5),
+            'PREDATOR_MAX_HUNGER': (20000.0, 100000.0, 1000.0),
+            'PREDATOR_FEED_RESTORE': (500.0, 5000.0, 100.0),
+            'PREDATOR_HUNTER_RANGE_MAX': (200.0, 1000.0, 50.0),
+            'SEPARATION_WEIGHT': (1.0, 3.5, 0.1),
+            'ALIGNMENT_WEIGHT': (0.5, 2.5, 0.1),
+            'COHESION_WEIGHT': (0.5, 2.5, 0.1),
+            'FOOD_WEIGHT': (0.5, 2.5, 0.1),
+            'ESCAPE_WEIGHT': (1.0, 3.0, 0.1),
+            'MID_FISH_ESCAPE_WEIGHT': (1.2, 3.5, 0.1),
+            'FISH_NATURAL_BREED_CHANCE': (0.00005, 0.0002, 0.00001),
+            'MID_FISH_BREED_CHANCE': (0.00003, 0.00015, 0.00001),
+            'PREDATOR_HUNT_FISH_WEIGHT': (20.0, 100.0, 5.0),
+            'PREDATOR_HUNT_MID_FISH_WEIGHT': (50.0, 150.0, 5.0),
+            'FISH_BREED_COOLDOWN': (1000, 4000, 100),
+            'MID_FISH_BREED_COOLDOWN': (1200, 4800, 100),
         }

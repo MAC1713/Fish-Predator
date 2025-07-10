@@ -8,13 +8,10 @@ import math
 import random
 import pygame
 from pygame import Vector2
+
+from common_def import limit_vector
 from config import Config
 
-
-def limit_vector(vector, max_magnitude):
-    if vector.length() > max_magnitude:
-        return vector.normalize() * max_magnitude
-    return vector
 
 
 class MidFish:
@@ -24,6 +21,9 @@ class MidFish:
                                             random.uniform(-1, 1)).normalize() * Config.MID_FISH_SPEED
         self.acceleration = pygame.math.Vector2(0, 0)
         self.age = 0
+        self.hunger = 150
+        self.max_hunger = 150
+        self.hunger_decay = 0.15
         self.last_breed_time = 0
         self.can_reproduce = False
         self.last_reproduction = 0
@@ -39,7 +39,7 @@ class MidFish:
         self.experience = 0
         self.panic_resistance = random.uniform(0.5, 1.0)
         self.trail = []
-        self.preferred_food = 'small_fish' if random.random() < 0.5 else 'plankton'
+        self.preferred_food = 'small_fish' if random.random() < Config.MID_FISH_FOOD_PREFERENCE else 'plankton'
         self.color_offset = random.random() * math.pi * 2
         self.fear_level = 0
         self.target_food = None
@@ -52,10 +52,11 @@ class MidFish:
                escape_weight=Config.MID_FISH_ESCAPE_WEIGHT):
         if not self.is_alive:
             return
-        if self.age > self.max_age:
+        if self.hunger <= 0 or self.age > self.max_age:
             self.is_alive = False
             return
         self.age += 1
+        self.hunger -= self.hunger_decay
         # 动态更新参数
         self.max_speed = Config.MID_FISH_SPEED
         self.max_force = Config.MID_FISH_FORCE
@@ -102,8 +103,12 @@ class MidFish:
         fear_recovery = 0.02 + self.panic_resistance * 0.01
         self.fear_level = max(0, self.fear_level - fear_recovery)
 
-    def attempt_reproduction(self, current_time, adjusted_breed_chance):
+    def attempt_reproduction(self, current_time, adjusted_breed_chance, swarm):
+        """中型鱼繁殖，Nova调参，冷却时间动态调整，生鱼崽崽稳稳的~"""
+        breed_cooldown = swarm.balancer.adjusted_params.get('FISH_BREED_COOLDOWN', Config.FISH_BREED_COOLDOWN) * 1.5
         if not self.can_reproduce or not self.is_mature or not self.is_alive:
+            return None
+        if (current_time - self.last_reproduction) < breed_cooldown:  # Nova: 动态冷却，优雅又精准！
             return None
         if (random.random() < adjusted_breed_chance or
                 (current_time - self.last_feed_time < 300 and random.random() < Config.FISH_FOOD_BREED_CHANCE)):
@@ -123,6 +128,7 @@ class MidFish:
     def feed(self, current_time):
         self.energy = min(150, self.energy + 25)
         self.last_feed_time = current_time
+        self.hunger = min(self.max_hunger, self.hunger + 30)
 
     def flee_from_predators(self, predators):
         flee_force = pygame.math.Vector2(0, 0)

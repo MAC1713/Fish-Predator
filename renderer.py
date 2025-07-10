@@ -13,6 +13,7 @@ from config import Config
 
 class Renderer:
     def __init__(self, screen):
+        self.show_predator_data = False
         self.screen = screen
         # 使用 pygame.font.SysFont，Arial 兼容性好，支持中文
         self.font = pygame.font.SysFont('Arial', 16, bold=True)
@@ -127,6 +128,11 @@ class Renderer:
             eye_size = int(predator.size / 3)
             pygame.draw.circle(self.screen, (255, 100, 100),
                                (int(predator.position.x), int(predator.position.y)), eye_size)
+            if self.show_predator_data:
+                font = pygame.font.Font(None, 20)
+                text = f"Hunger: {predator.hunger:.0f}, Age: {predator.age}"
+                text_surface = font.render(text, True, (255, 255, 255))
+                self.screen.blit(text_surface, (predator.position.x, predator.position.y - 20))
 
     def render_environment(self, environment):
         for bubble in environment.bubbles:
